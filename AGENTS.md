@@ -19,3 +19,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 4. Run `npx drizzle-kit migrate` to apply it to the database
 5. Never use `drizzle-kit push` — always go through the generate → migrate flow to maintain a proper migration history
 <!-- END:database-rules -->
+
+<!-- BEGIN:commit-conventions -->
+# Commit Message Conventions
+
+After completing **any** task — code changes, config updates, documentation edits, refactors, bug fixes — always suggest a Conventional Commits-formatted commit message using the `conventional-commits` skill located at `.agents/skills/conventional-commits/`.
+
+Never finish a task without suggesting a commit message. This is non-negotiable.
+<!-- END:commit-conventions -->
