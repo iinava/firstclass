@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# agent skills can be install via skill json so no need of tracking this files
+.agents/*
