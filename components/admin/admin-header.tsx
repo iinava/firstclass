@@ -19,6 +19,7 @@ const segmentLabels: Record<string, string> = {
   admin: "Dashboard",
   users: "Users",
   settings: "Settings",
+  info: "Info",
 }
 
 export function AdminHeader() {

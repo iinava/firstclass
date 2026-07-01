@@ -15,7 +15,7 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
 } from "@/components/ui/sidebar"
-import { LayoutDashboardIcon, UsersIcon, Settings2Icon, ShieldIcon } from "lucide-react"
+import { LayoutDashboardIcon, UsersIcon, Settings2Icon, ShieldIcon, InfoIcon } from "lucide-react"
 
 const navItems = [
   {
@@ -32,6 +32,11 @@ const navItems = [
     title: "Settings",
     url: "/admin/settings",
     icon: Settings2Icon,
+  },
+  {
+    title: "Info",
+    url: "/admin/info",
+    icon: InfoIcon,
   },
 ]
 
