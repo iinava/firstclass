@@ -40,13 +40,14 @@ const navItems = [
   },
 ]
 
-const adminUser = {
-  name: "Super Admin",
-  email: "admin@example.com",
-  avatar: "",
+type SidebarUser = {
+  name: string
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({
+  user,
+  ...props
+}: React.ComponentProps<typeof Sidebar> & { user: SidebarUser }) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -82,7 +83,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
 
       <SidebarFooter>
-        <NavUser user={adminUser} />
+        <NavUser user={user} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
