@@ -13,20 +13,3 @@ export interface SessionPayload extends JWTPayload {
   role: UserRole
   email: string | null
 }
-
-/** Field-level error bag for the login form, used with useActionState. */
-export interface AuthFormErrors {
-  username?: string[]
-  password?: string[]
-}
-
-/**
- * Return type of the login Server Action.
- * undefined = initial / not yet submitted.
- */
-export type AuthFormState =
-  | {
-      errors?: AuthFormErrors
-      message?: string
-    }
-  | undefined

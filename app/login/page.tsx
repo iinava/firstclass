@@ -1,16 +1,40 @@
 "use client"
 
-import { useActionState } from "react"
+import { useTransition } from "react"
+import { useForm } from "react-hook-form"
+import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { ShieldIcon } from "lucide-react"
 import { login } from "@/app/login/actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import type { AuthFormState } from "@/types/auth"
-
-const initialState: AuthFormState = undefined
+import { LoginSchema, type LoginInput } from "@/validations/auth.validation"
 
 export default function LoginPage() {
-  const [state, action, pending] = useActionState(login, initialState)
+  const [isPending, startTransition] = useTransition()
+
+  const form = useForm<LoginInput>({
+    resolver: standardSchemaResolver(LoginSchema),
+    defaultValues: {
+      username: "",
+      password: "",
+    },
+  })
+
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors },
+  } = form
+
+  function onSubmit(data: LoginInput) {
+    startTransition(async () => {
+      const result = await login(data)
+      if (result?.error) {
+        setError("root", { message: result.error })
+      }
+    })
+  }
 
   return (
     <div className="flex min-h-full flex-1 flex-col items-center justify-center px-4 py-12">
@@ -27,11 +51,11 @@ export default function LoginPage() {
         </div>
 
         {/* Form */}
-        <form action={action} className="space-y-4">
-          {/* Global error message */}
-          {state?.message && (
+        <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+          {/* Root / server error */}
+          {errors.root && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {state.message}
+              {errors.root.message}
             </div>
           )}
 
@@ -42,16 +66,17 @@ export default function LoginPage() {
             </label>
             <Input
               id="username"
-              name="username"
               type="text"
               autoComplete="username"
               autoFocus
               placeholder="Enter your username"
-              aria-describedby={state?.errors?.username ? "username-error" : undefined}
+              aria-invalid={!!errors.username}
+              aria-describedby={errors.username ? "username-error" : undefined}
+              {...register("username")}
             />
-            {state?.errors?.username && (
+            {errors.username && (
               <p id="username-error" className="text-xs text-destructive">
-                {state.errors.username[0]}
+                {errors.username.message}
               </p>
             )}
           </div>
@@ -63,21 +88,22 @@ export default function LoginPage() {
             </label>
             <Input
               id="password"
-              name="password"
               type="password"
               autoComplete="current-password"
               placeholder="Enter your password"
-              aria-describedby={state?.errors?.password ? "password-error" : undefined}
+              aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? "password-error" : undefined}
+              {...register("password")}
             />
-            {state?.errors?.password && (
+            {errors.password && (
               <p id="password-error" className="text-xs text-destructive">
-                {state.errors.password[0]}
+                {errors.password.message}
               </p>
             )}
           </div>
 
-          <Button type="submit" className="w-full" disabled={pending}>
-            {pending ? "Signing in…" : "Sign in"}
+          <Button type="submit" className="w-full" disabled={isPending}>
+            {isPending ? "Signing in…" : "Sign in"}
           </Button>
         </form>
       </div>
