@@ -1,6 +1,7 @@
 "use client"
 
 import { useTransition } from "react"
+import { toast } from "sonner"
 import { useForm } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { ShieldIcon } from "lucide-react"
@@ -23,7 +24,6 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
-    setError,
     formState: { errors },
   } = form
 
@@ -31,7 +31,7 @@ export default function LoginPage() {
     startTransition(async () => {
       const result = await login(data)
       if (result?.error) {
-        setError("root", { message: result.error })
+        toast.error(result.error)
       }
     })
   }
@@ -52,12 +52,6 @@ export default function LoginPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
-          {/* Root / server error */}
-          {errors.root && (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {errors.root.message}
-            </div>
-          )}
 
           {/* Username */}
           <div className="space-y-1.5">
