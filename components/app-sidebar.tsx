@@ -2,52 +2,217 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
+import {
+  BanknoteIcon,
+  BriefcaseIcon,
+  BusIcon,
+  CalendarCheckIcon,
+  ChartNoAxesCombinedIcon,
+  FileTextIcon,
+  InfoIcon,
+  LayoutDashboardIcon,
+  MapIcon,
+  ReceiptIcon,
+  Settings2Icon,
+  ShieldIcon,
+  Store,
+  UserRoundCheckIcon,
+  UsersIcon,
+  WalletIcon,
+} from "lucide-react"
 import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  SidebarGroup,
-  SidebarGroupLabel,
 } from "@/components/ui/sidebar"
-import { LayoutDashboardIcon, UsersIcon, Settings2Icon, ShieldIcon, InfoIcon } from "lucide-react"
+import { hasAnyPermission, type Permission } from "@/lib/rbac"
+import type { UserRole } from "@/types/auth"
 
-const navItems = [
+interface NavItem {
+  title: string
+  url: string
+  icon: React.ComponentType<{ className?: string }>
+  /** Item is hidden unless the user holds at least one of these. */
+  permissions: Permission[]
+}
+
+interface NavGroup {
+  label: string
+  items: NavItem[]
+}
+
+const NAV: NavGroup[] = [
   {
-    title: "Dashboard",
-    url: "/admin",
-    icon: LayoutDashboardIcon,
+    label: "Overview",
+    items: [
+      {
+        title: "Dashboard",
+        url: "/admin",
+        icon: LayoutDashboardIcon,
+        permissions: ["dashboard:view"],
+      },
+    ],
   },
   {
-    title: "Users",
-    url: "/admin/users",
-    icon: UsersIcon,
+    label: "Sales",
+    items: [
+      {
+        title: "Leads",
+        url: "/admin/leads",
+        icon: BriefcaseIcon,
+        permissions: ["lead:view"],
+      },
+      {
+        title: "Follow-ups",
+        url: "/admin/followups",
+        icon: CalendarCheckIcon,
+        permissions: ["lead:view"],
+      },
+      {
+        title: "Customers",
+        url: "/admin/customers",
+        icon: UsersIcon,
+        permissions: ["customer:view"],
+      },
+      {
+        title: "Packages",
+        url: "/admin/packages",
+        icon: MapIcon,
+        permissions: ["itinerary:view"],
+      },
+    ],
   },
   {
-    title: "Settings",
-    url: "/admin/settings",
-    icon: Settings2Icon,
+    label: "Operations",
+    items: [
+      {
+        title: "Bookings",
+        url: "/admin/bookings",
+        icon: CalendarCheckIcon,
+        permissions: ["booking:view"],
+      },
+      {
+        title: "Suppliers",
+        url: "/admin/suppliers",
+        icon: Store,
+        permissions: ["supplier:view"],
+      },
+      {
+        title: "Fleet",
+        url: "/admin/fleet",
+        icon: BusIcon,
+        permissions: ["vehicle:view"],
+      },
+    ],
   },
   {
-    title: "Info",
-    url: "/admin/info",
-    icon: InfoIcon,
+    label: "Accounts",
+    items: [
+      {
+        title: "Invoices",
+        url: "/admin/invoices",
+        icon: FileTextIcon,
+        permissions: ["invoice:view"],
+      },
+      {
+        title: "Payments",
+        url: "/admin/payments",
+        icon: WalletIcon,
+        permissions: ["payment:view"],
+      },
+      {
+        title: "Expenses",
+        url: "/admin/expenses",
+        icon: ReceiptIcon,
+        permissions: ["expense:view"],
+      },
+      {
+        title: "Reports",
+        url: "/admin/reports",
+        icon: ChartNoAxesCombinedIcon,
+        // Matches the page's own gate — see app/admin/reports/page.tsx.
+        permissions: ["report:financial"],
+      },
+    ],
+  },
+  {
+    label: "Team",
+    items: [
+      {
+        title: "Employees",
+        url: "/admin/employees",
+        icon: UserRoundCheckIcon,
+        permissions: ["hrms:view"],
+      },
+      {
+        title: "Attendance",
+        url: "/admin/attendance",
+        icon: BanknoteIcon,
+        permissions: ["hrms:view", "attendance:mark"],
+      },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      {
+        title: "Users",
+        url: "/admin/users",
+        icon: ShieldIcon,
+        permissions: ["user:view"],
+      },
+      {
+        title: "Settings",
+        url: "/admin/settings",
+        icon: Settings2Icon,
+        permissions: ["settings:view"],
+      },
+      {
+        title: "Guide",
+        url: "/admin/info",
+        icon: InfoIcon,
+        permissions: ["dashboard:view"],
+      },
+    ],
   },
 ]
 
 type SidebarUser = {
   name: string
+  role: UserRole
 }
 
 export function AppSidebar({
   user,
   ...props
 }: React.ComponentProps<typeof Sidebar> & { user: SidebarUser }) {
+  const pathname = usePathname()
+
+  // Hiding a link is presentation only — every route and action re-checks the
+  // same permission on the server.
+  const groups = React.useMemo(
+    () =>
+      NAV.map((group) => ({
+        ...group,
+        items: group.items.filter((item) =>
+          hasAnyPermission(user.role, item.permissions)
+        ),
+      })).filter((group) => group.items.length > 0),
+    [user.role]
+  )
+
+  const isActive = (url: string) =>
+    url === "/admin" ? pathname === "/admin" : pathname.startsWith(url)
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -58,8 +223,10 @@ export function AppSidebar({
                 <ShieldIcon className="size-4" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">Admin Panel</span>
-                <span className="truncate text-xs text-muted-foreground">Starter Template</span>
+                <span className="truncate font-semibold">First Class</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  Travel ERP
+                </span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -67,19 +234,25 @@ export function AppSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarMenu>
-            {navItems.map((item) => (
-              <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton tooltip={item.title} render={<Link href={item.url} />}>
-                  <item.icon />
-                  <span>{item.title}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
+        {groups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarMenu>
+              {group.items.map((item) => (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton
+                    tooltip={item.title}
+                    isActive={isActive(item.url)}
+                    render={<Link href={item.url} prefetch />}
+                  >
+                    <item.icon />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter>

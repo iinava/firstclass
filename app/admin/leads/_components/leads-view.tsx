@@ -1,0 +1,395 @@
+"use client"
+
+import * as React from "react"
+import { useQuery } from "@tanstack/react-query"
+import {
+  CalendarPlusIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  PhoneIcon,
+  PlusIcon,
+  SearchIcon,
+  Trash2Icon,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group"
+import { OptionSelect, optionsFrom } from "@/components/shared/option-select"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { unwrapAction, useActionMutation } from "@/hooks/use-action-mutation"
+import { useDebouncedValue, useListParams } from "@/hooks/use-list-params"
+import { formatDate, formatPhone, formatRelativeDay } from "@/lib/format"
+import { formatMoneyShort } from "@/lib/money"
+import { qk } from "@/lib/query-keys"
+import {
+  LEAD_PRIORITIES,
+  LEAD_STATUSES,
+  LEAD_STATUS_LABELS,
+} from "@/validations/lead.validation"
+import type { LeadListRow } from "@/lib/services/lead.service"
+import {
+  deleteLead,
+  fetchLeadStats,
+  fetchLeads,
+  updateLeadStatus,
+} from "../actions"
+import { LeadFormDialog } from "./lead-form-dialog"
+import { LeadStatsTiles } from "./lead-stats-tiles"
+import { ScheduleFollowupDialog } from "@/app/admin/followups/_components/schedule-followup-dialog"
+
+const FILTER_KEYS = ["status", "priority", "assignedTo"] as const
+const PAGE_SIZE = 25
+
+const STATUS_FILTER_OPTIONS = [
+  { value: "", label: "All stages" },
+  ...optionsFrom(LEAD_STATUSES, LEAD_STATUS_LABELS),
+]
+
+const PRIORITY_FILTER_OPTIONS = [
+  { value: "", label: "Any priority" },
+  ...LEAD_PRIORITIES.map((priority) => ({
+    value: priority,
+    label: priority[0].toUpperCase() + priority.slice(1),
+  })),
+]
+
+export function LeadsView() {
+  const { params, setSearch, setFilter, setPage, setSort } = useListParams<{
+    status: string
+    priority: string
+    assignedTo: string
+  }>([...FILTER_KEYS])
+
+  const [searchInput, setSearchInput] = React.useState(params.search)
+  const debouncedSearch = useDebouncedValue(searchInput, 350)
+
+  React.useEffect(() => {
+    if (debouncedSearch !== params.search) setSearch(debouncedSearch)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch])
+
+  const queryParams = React.useMemo(
+    () => ({
+      page: params.page,
+      pageSize: PAGE_SIZE,
+      search: params.search || undefined,
+      sortBy: params.sortBy,
+      sortDir: params.sortDir,
+      status: (params.status || undefined) as never,
+      priority: (params.priority || undefined) as never,
+      assignedTo: params.assignedTo || undefined,
+    }),
+    [
+      params.page,
+      params.search,
+      params.sortBy,
+      params.sortDir,
+      params.status,
+      params.priority,
+      params.assignedTo,
+    ]
+  )
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: qk.leads.list(queryParams),
+    queryFn: async () => unwrapAction(await fetchLeads(queryParams)),
+    placeholderData: (previous) => previous,
+  })
+
+  const { data: stats } = useQuery({
+    queryKey: qk.leads.stats(),
+    queryFn: async () => unwrapAction(await fetchLeadStats()),
+  })
+
+  const [formOpen, setFormOpen] = React.useState(false)
+  const [editing, setEditing] = React.useState<LeadListRow | null>(null)
+  const [deleting, setDeleting] = React.useState<LeadListRow | null>(null)
+  const [schedulingFor, setSchedulingFor] = React.useState<LeadListRow | null>(null)
+
+  const statusMutation = useActionMutation({
+    action: updateLeadStatus,
+    successMessage: "Stage updated",
+    invalidate: [qk.leads.all, qk.followups.all],
+  })
+
+  const removeMutation = useActionMutation({
+    action: deleteLead,
+    successMessage: "Lead deleted",
+    invalidate: [qk.leads.all],
+    onSuccess: () => setDeleting(null),
+  })
+
+  const columns = React.useMemo<DataTableColumn<LeadListRow>[]>(
+    () => [
+      {
+        key: "code",
+        header: "Enquiry",
+        sortable: true,
+        cell: (row) => (
+          <div className="min-w-0">
+            <p className="truncate font-medium">{row.customerName}</p>
+            <p className="truncate font-mono text-xs text-muted-foreground">
+              {row.code}
+            </p>
+          </div>
+        ),
+      },
+      {
+        key: "phone",
+        header: "Phone",
+        hideOnMobile: true,
+        cell: (row) => (
+          <a
+            href={`tel:${row.customerPhone}`}
+            className="inline-flex items-center gap-1.5 tabular-nums hover:underline"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <PhoneIcon className="size-3 text-muted-foreground" />
+            {formatPhone(row.customerPhone)}
+          </a>
+        ),
+      },
+      {
+        key: "destination",
+        header: "Trip",
+        cell: (row) => (
+          <div className="min-w-0">
+            <p className="truncate">{row.destination ?? "—"}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {row.travelDate ? formatDate(row.travelDate) : "Date TBD"} ·{" "}
+              {row.adults + row.children} pax
+            </p>
+          </div>
+        ),
+      },
+      {
+        key: "budget",
+        header: "Budget",
+        sortable: true,
+        hideOnMobile: true,
+        cell: (row) =>
+          row.budget ? (
+            <span className="tabular-nums">{formatMoneyShort(row.budget)}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        key: "nextFollowup",
+        header: "Next action",
+        hideOnMobile: true,
+        cell: (row) =>
+          row.nextFollowupAt ? (
+            <span
+              className={
+                new Date(row.nextFollowupAt) < new Date()
+                  ? "text-red-500 font-medium"
+                  : "text-muted-foreground"
+              }
+            >
+              {formatRelativeDay(row.nextFollowupAt)}
+            </span>
+          ) : (
+            <span className="text-amber-500">Not scheduled</span>
+          ),
+      },
+      {
+        key: "status",
+        header: "Stage",
+        sortable: true,
+        cell: (row) => <StatusBadge status={row.status} />,
+      },
+      {
+        key: "actions",
+        header: <span className="sr-only">Actions</span>,
+        className: "w-10",
+        cell: (row) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon-sm" />}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <MoreHorizontalIcon className="size-4" />
+              <span className="sr-only">Open actions</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditing(row)
+                  setFormOpen(true)
+                }}
+              >
+                <PencilIcon className="size-4" />
+                Edit enquiry
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSchedulingFor(row)}>
+                <CalendarPlusIcon className="size-4" />
+                Schedule follow-up
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+              {/* The label is a group part — outside DropdownMenuGroup Base UI
+                  throws and the whole page falls into the error boundary. */}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  Move to stage
+                </DropdownMenuLabel>
+                {LEAD_STATUSES.filter((status) => status !== row.status).map((status) => (
+                  <DropdownMenuItem
+                    key={status}
+                    disabled={statusMutation.isPending}
+                    onClick={() =>
+                      statusMutation.mutate({
+                        id: row.id,
+                        status,
+                        // "Lost" requires a reason; the menu can't collect one, so
+                        // it records a default the user can edit on the lead.
+                        lostReason:
+                          status === "lost" ? "Marked lost from list" : undefined,
+                      } as never)
+                    }
+                  >
+                    {LEAD_STATUS_LABELS[status]}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={() => setDeleting(row)}>
+                <Trash2Icon className="size-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+      },
+    ],
+    [statusMutation]
+  )
+
+  return (
+    <div className="flex flex-col gap-4">
+      <LeadStatsTiles stats={stats} />
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+          <InputGroup className="w-full sm:max-w-xs">
+            <InputGroupInput
+              placeholder="Search code, customer, destination…"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              aria-label="Search leads"
+            />
+            <InputGroupAddon>
+              <SearchIcon className="size-4 text-muted-foreground" />
+            </InputGroupAddon>
+          </InputGroup>
+
+          <OptionSelect
+            className="w-full sm:w-36"
+            aria-label="Filter by stage"
+            options={STATUS_FILTER_OPTIONS}
+            value={params.status ?? ""}
+            onValueChange={(value) => setFilter("status", value)}
+          />
+
+          <OptionSelect
+            className="w-full sm:w-36"
+            aria-label="Filter by priority"
+            options={PRIORITY_FILTER_OPTIONS}
+            value={params.priority ?? ""}
+            onValueChange={(value) => setFilter("priority", value)}
+          />
+        </div>
+
+        <Button
+          onClick={() => {
+            setEditing(null)
+            setFormOpen(true)
+          }}
+        >
+          <PlusIcon data-icon="inline-start" />
+          New enquiry
+        </Button>
+      </div>
+
+      <DataTable
+        columns={columns}
+        rows={data?.rows}
+        getRowId={(row) => row.id}
+        isLoading={isLoading || isFetching}
+        emptyTitle={params.search ? "No matching enquiries" : "No enquiries yet"}
+        emptyDescription={
+          params.search
+            ? "Try a different customer name, code or destination."
+            : "Log your first enquiry when the next call comes in."
+        }
+        onRowClick={(row) => {
+          setEditing(row)
+          setFormOpen(true)
+        }}
+        pagination={
+          data
+            ? {
+                page: data.page,
+                pageCount: data.pageCount,
+                total: data.total,
+                pageSize: data.pageSize,
+                onPageChange: setPage,
+              }
+            : undefined
+        }
+        sort={{
+          sortBy: params.sortBy,
+          sortDir: params.sortDir,
+          onSortChange: setSort,
+        }}
+      />
+
+      <LeadFormDialog
+        open={formOpen}
+        onOpenChange={(open) => {
+          setFormOpen(open)
+          if (!open) setEditing(null)
+        }}
+        lead={editing}
+      />
+
+      <ScheduleFollowupDialog
+        open={Boolean(schedulingFor)}
+        onOpenChange={(open) => !open && setSchedulingFor(null)}
+        leadId={schedulingFor?.id ?? null}
+        leadLabel={
+          schedulingFor
+            ? `${schedulingFor.customerName} · ${schedulingFor.code}`
+            : undefined
+        }
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={`Delete enquiry ${deleting?.code}?`}
+        description="The enquiry is archived and disappears from the pipeline. Won leads linked to a booking cannot be deleted."
+        confirmLabel="Delete"
+        variant="destructive"
+        isPending={removeMutation.isPending}
+        onConfirm={() => deleting && removeMutation.mutate({ id: deleting.id })}
+      />
+    </div>
+  )
+}

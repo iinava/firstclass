@@ -1,19 +1,29 @@
 "use client"
 
+import * as React from "react"
 import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Toggle } from "@/components/ui/toggle"
-import { useEffect, useState } from "react"
+
+const noopSubscribe = () => () => {}
+
+/**
+ * The server can't know the client's theme, so the first client render must
+ * match the server's. `useSyncExternalStore` gives us that hydration-safe flag
+ * without mirroring it through state in an effect.
+ */
+function useHydrated() {
+  return React.useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false
+  )
+}
 
 export function ModeToggle() {
   const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => { setMounted(true) }, [])
-
-  // The server renders theme === "dark" as false because it doesn't know the client theme.
-  // We match the server's initial render to avoid hydration mismatch, then switch to the actual theme.
-  const isDark = mounted ? theme === "dark" : false
+  const hydrated = useHydrated()
+  const isDark = hydrated ? theme === "dark" : false
 
   return (
     <Toggle

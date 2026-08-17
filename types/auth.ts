@@ -1,6 +1,12 @@
 import type { JWTPayload } from "jose"
+import type { userRoleEnum } from "@/db/schemas/user.schema"
 
-export type UserRole = "superadmin" | "admin" | "staff"
+/**
+ * Derived from the Drizzle enum so the two can never drift apart — adding a
+ * role to the schema automatically widens this union and surfaces every place
+ * (RBAC matrix, role labels) that needs updating as a type error.
+ */
+export type UserRole = (typeof userRoleEnum.enumValues)[number]
 
 /**
  * Our application-level JWT claims, extending jose's standard JWTPayload.

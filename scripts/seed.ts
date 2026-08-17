@@ -19,6 +19,7 @@ import { neon } from "@neondatabase/serverless"
 import { drizzle } from "drizzle-orm/neon-http"
 import { eq } from "drizzle-orm"
 import { users } from "../db/schemas/user.schema"
+import { expenseCategories } from "../db/schemas/accounts.schema"
 import { hashPassword } from "../lib/password"
 
 const sql = neon(process.env.DATABASE_URL!)
@@ -45,6 +46,8 @@ async function main() {
 
   if (existing) {
     console.log(`⚠ User "${username}" already exists — skipping.`)
+    // Categories are seeded independently, so a re-run still tops them up.
+    await seedExpenseCategories()
     process.exit(0)
   }
 
@@ -58,7 +61,37 @@ async function main() {
   })
 
   console.log(`✅ Superadmin "${username}" created successfully!`)
+
+  await seedExpenseCategories()
   process.exit(0)
+}
+
+/**
+ * Starter expense buckets so the Expenses screen is usable on day one.
+ * Idempotent — existing names are left alone.
+ */
+async function seedExpenseCategories() {
+  const defaults: { name: string; isTripRelated: boolean }[] = [
+    { name: "Fuel", isTripRelated: true },
+    { name: "Tolls & parking", isTripRelated: true },
+    { name: "Driver allowance", isTripRelated: true },
+    { name: "Vehicle maintenance", isTripRelated: true },
+    { name: "Guide & entry tickets", isTripRelated: true },
+    { name: "Meals on trip", isTripRelated: true },
+    { name: "Office rent", isTripRelated: false },
+    { name: "Salaries", isTripRelated: false },
+    { name: "Marketing", isTripRelated: false },
+    { name: "Utilities & internet", isTripRelated: false },
+    { name: "Miscellaneous", isTripRelated: false },
+  ]
+
+  const inserted = await db
+    .insert(expenseCategories)
+    .values(defaults)
+    .onConflictDoNothing({ target: expenseCategories.name })
+    .returning({ id: expenseCategories.id })
+
+  console.log(`✅ Expense categories ready (${inserted.length} added)`)
 }
 
 main().catch((err) => {

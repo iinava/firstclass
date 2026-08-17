@@ -6,6 +6,7 @@ import { db } from "@/db/drizzle"
 import { users } from "@/db/schemas/user.schema"
 import { createSession } from "@/lib/session"
 import { verifyPassword } from "@/lib/password"
+import { touchLastLogin } from "@/lib/services/user.service"
 import type { LoginInput } from "@/validations/auth.validation"
 
 export interface LoginActionResult {
@@ -38,7 +39,13 @@ export async function login(data: LoginInput): Promise<LoginActionResult> {
     return { error: "Invalid username or password" }
   }
 
-  // 3. Create session
+  // 3. Deactivated accounts must not be able to sign in — checked after the
+  //    password so a wrong password can't be used to probe which accounts exist.
+  if (!user.isActive) {
+    return { error: "This account has been deactivated. Contact an administrator." }
+  }
+
+  // 4. Create session
   await createSession({
     userId: user.id,
     username: user.username,
@@ -46,6 +53,9 @@ export async function login(data: LoginInput): Promise<LoginActionResult> {
     email: user.email ?? null,
   })
 
-  // 4. Redirect to admin
+  // Recorded for the Users screen; a failure here must not block sign-in.
+  await touchLastLogin(user.id).catch(() => {})
+
+  // 5. Redirect to admin
   redirect("/admin")
 }
