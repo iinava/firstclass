@@ -21,6 +21,7 @@ import {
   TextareaField,
   optionsFrom,
 } from "@/components/shared/form-fields"
+import { ImageUploadField } from "@/components/shared/image-upload-field"
 import { unwrapAction } from "@/hooks/use-action-mutation"
 import { useCrudForm } from "@/hooks/use-crud-form"
 import { toRupees } from "@/lib/money"
@@ -184,11 +185,13 @@ function ExpenseForm({
             />
           </div>
 
-          <TextField
+          <ImageUploadField
             control={form.control}
             name="billUrl"
-            label="Bill / receipt link"
-            placeholder="Paste a link to the photo (uploads coming later)"
+            label="Bill / receipt"
+            folder="expenses"
+            allowDocuments
+            description="A photo or scan of the bill, kept with the expense for approval."
           />
           <TextareaField control={form.control} name="notes" label="Notes" rows={2} />
         </FieldGroup>

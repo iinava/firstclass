@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   ArrowLeftIcon,
   ExternalLinkIcon,
@@ -25,14 +25,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import {
+  discardUpload,
+  uploadToStorage,
+} from "@/components/shared/image-upload-field"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { Spinner } from "@/components/ui/spinner"
 import { unwrapAction, useActionMutation } from "@/hooks/use-action-mutation"
 import { formatDuration } from "@/lib/format"
 import { formatMoney } from "@/lib/money"
 import { qk } from "@/lib/query-keys"
+import {
+  ACCEPTED_IMAGE_LABEL,
+  ACCEPTED_IMAGE_MIME,
+  MAX_IMAGES_PER_ITINERARY,
+  MAX_UPLOAD_LABEL,
+} from "@/lib/storage/types"
 import {
   ITINERARY_STATUSES,
   ITINERARY_STATUS_LABELS,
@@ -57,7 +67,9 @@ export function ItineraryEditor({ itineraryId }: { itineraryId: string }) {
   const [dayOpen, setDayOpen] = React.useState(false)
   const [editingDay, setEditingDay] = React.useState<ItineraryDay | null>(null)
   const [deletingDay, setDeletingDay] = React.useState<ItineraryDay | null>(null)
-  const [imageUrl, setImageUrl] = React.useState("")
+  const [isUploading, setIsUploading] = React.useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const queryClient = useQueryClient()
 
   const statusMutation = useActionMutation({
     action: updateItineraryStatus,
@@ -70,13 +82,6 @@ export function ItineraryEditor({ itineraryId }: { itineraryId: string }) {
     successMessage: "Day removed",
     invalidate: [qk.itineraries.all],
     onSuccess: () => setDeletingDay(null),
-  })
-
-  const addImageMutation = useActionMutation({
-    action: addImage,
-    successMessage: "Photo added",
-    invalidate: [qk.itineraries.all],
-    onSuccess: () => setImageUrl(""),
   })
 
   const removeImageMutation = useActionMutation({
@@ -105,6 +110,63 @@ export function ItineraryEditor({ itineraryId }: { itineraryId: string }) {
       toast.success("Share link copied", { description: shareUrl })
     } catch {
       toast.info("Copy this link", { description: shareUrl, duration: 10000 })
+    }
+  }
+
+  /**
+   * Uploads each picked file and attaches it to the itinerary.
+   *
+   * One at a time rather than in parallel: the gallery is ordered by
+   * `sortOrder`, and a failed upload halfway through should leave the photos
+   * before it saved rather than roll the whole batch back. A file that uploads
+   * but fails to attach is discarded so it doesn't linger unreferenced on disk.
+   */
+  const handleFiles = async (picked: FileList | null) => {
+    if (!picked?.length) return
+
+    const slots = MAX_IMAGES_PER_ITINERARY - images.length
+    if (slots <= 0) {
+      toast.error(`An itinerary can hold at most ${MAX_IMAGES_PER_ITINERARY} photos.`)
+      return
+    }
+    const files = [...picked].slice(0, slots)
+    if (files.length < picked.length) {
+      toast.warning(`Only ${slots} more photo${slots > 1 ? "s" : ""} will fit — the rest were skipped.`)
+    }
+
+    setIsUploading(true)
+    let added = 0
+    try {
+      for (const [index, file] of files.entries()) {
+        let url: string
+        try {
+          url = await uploadToStorage(file, "itinerary-photos")
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : `Could not upload "${file.name}"`)
+          continue
+        }
+
+        const result = await addImage({
+          itineraryId,
+          url,
+          sortOrder: images.length + index,
+        } as never)
+
+        if (!result.ok) {
+          discardUpload(url)
+          toast.error(result.error)
+          continue
+        }
+        added++
+      }
+    } finally {
+      setIsUploading(false)
+      // Clear the input so re-picking the same file still fires change.
+      if (fileInputRef.current) fileInputRef.current.value = ""
+      if (added > 0) {
+        toast.success(`${added} photo${added > 1 ? "s" : ""} added`)
+        void queryClient.invalidateQueries({ queryKey: qk.itineraries.all })
+      }
     }
   }
 
@@ -276,30 +338,39 @@ export function ItineraryEditor({ itineraryId }: { itineraryId: string }) {
         <div>
           <h2 className="text-sm font-medium">Photos</h2>
           <p className="text-xs text-muted-foreground">
-            Shown in the gallery on the shared page. Paste image URLs for now — file
-            uploads need storage to be configured.
+            Shown in the gallery on the shared page. {ACCEPTED_IMAGE_LABEL}, up to{" "}
+            {MAX_UPLOAD_LABEL} each — {images.length} of {MAX_IMAGES_PER_ITINERARY} used.
           </p>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Input
-            placeholder="https://images.example.com/munnar.jpg"
-            value={imageUrl}
-            onChange={(event) => setImageUrl(event.target.value)}
-            aria-label="Image URL"
+        <div>
+          <input
+            ref={fileInputRef}
+            id="itinerary-photos"
+            type="file"
+            accept={ACCEPTED_IMAGE_MIME}
+            multiple
+            className="sr-only"
+            disabled={isUploading || images.length >= MAX_IMAGES_PER_ITINERARY}
+            onChange={(event) => void handleFiles(event.target.files)}
           />
           <Button
-            disabled={!imageUrl.trim() || addImageMutation.isPending}
-            onClick={() =>
-              addImageMutation.mutate({
-                itineraryId,
-                url: imageUrl.trim(),
-                sortOrder: images.length,
-              } as never)
-            }
+            type="button"
+            variant="outline"
+            className="h-auto w-full justify-center border-dashed py-6"
+            disabled={isUploading || images.length >= MAX_IMAGES_PER_ITINERARY}
+            onClick={() => fileInputRef.current?.click()}
           >
-            <ImagePlusIcon data-icon="inline-start" />
-            Add photo
+            {isUploading ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <ImagePlusIcon data-icon="inline-start" />
+            )}
+            {isUploading
+              ? "Uploading…"
+              : images.length >= MAX_IMAGES_PER_ITINERARY
+                ? "No slots left"
+                : "Add photos"}
           </Button>
         </div>
 

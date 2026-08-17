@@ -13,6 +13,7 @@ import {
 import { formatMoney } from "@/lib/money"
 import * as accounts from "@/lib/services/accounts.service"
 import * as bookingService from "@/lib/services/booking.service"
+import { storage } from "@/lib/storage"
 import { uuidSchema } from "@/validations/common.validation"
 import {
   ApproveExpenseSchema,
@@ -400,6 +401,17 @@ export const updateExpense = defineAction({
       vehicleId: input.vehicleId ?? null,
       categoryId: input.categoryId ?? null,
     })
+
+    // The bill was replaced or cleared. Best-effort unlink: the row is already
+    // saved, so a failed delete is housekeeping, not a user-facing error.
+    // (Deleting an expense is a soft delete, so those files are kept.)
+    if (before.billUrl && before.billUrl !== expense?.billUrl) {
+      try {
+        await storage.delete(before.billUrl)
+      } catch (error) {
+        console.error("[expenses] could not remove bill", before.billUrl, error)
+      }
+    }
 
     await recordAudit({
       entity: "expenses",

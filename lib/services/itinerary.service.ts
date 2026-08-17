@@ -421,8 +421,28 @@ export async function addImage(values: typeof itineraryImages.$inferInsert) {
   return row
 }
 
-export async function deleteImage(id: string): Promise<void> {
-  await db.delete(itineraryImages).where(eq(itineraryImages.id, id))
+/** Returns the deleted row so the caller can unlink the file it pointed at. */
+export async function deleteImage(id: string) {
+  const [row] = await db
+    .delete(itineraryImages)
+    .where(eq(itineraryImages.id, id))
+    .returning()
+  return row ?? null
+}
+
+/**
+ * How many live itineraries still use this cover image.
+ *
+ * `cloneItinerary` copies `coverImageUrl` verbatim, so two rows can share one
+ * file — replacing the cover on one of them must not unlink the file the other
+ * is still rendering.
+ */
+export async function countCoverImageUses(url: string): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(itineraries)
+    .where(and(alive, eq(itineraries.coverImageUrl, url)))
+  return row?.value ?? 0
 }
 
 /** Copies a package (with its days) into a new itinerary for a customer. */

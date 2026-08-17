@@ -20,6 +20,7 @@ import {
   TextField,
   TextareaField,
 } from "@/components/shared/form-fields"
+import { ImageUploadField } from "@/components/shared/image-upload-field"
 import { useCrudForm } from "@/hooks/use-crud-form"
 import { toRupees } from "@/lib/money"
 import { qk } from "@/lib/query-keys"
@@ -195,11 +196,12 @@ function ItineraryForm({
             placeholder="A short pitch shown at the top of the shared page"
           />
 
-          <TextField
+          <ImageUploadField
             control={form.control}
             name="coverImageUrl"
-            label="Cover image URL"
-            placeholder="https://…"
+            label="Cover image"
+            folder="itineraries"
+            description="Shown on the catalogue card and at the top of the shared page."
           />
 
           <div className="grid gap-4 rounded-lg border border-dashed p-4 sm:grid-cols-2">

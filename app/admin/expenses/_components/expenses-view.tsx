@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query"
 import {
   CheckCircle2Icon,
   MoreHorizontalIcon,
+  PaperclipIcon,
   PencilIcon,
   PlusIcon,
   ReceiptIcon,
@@ -192,6 +193,18 @@ export function ExpensesView() {
               <span className="sr-only">Open actions</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {row.billUrl && (
+                // Whoever approves the expense needs to see the bill, and the
+                // table has no room for a preview column.
+                <DropdownMenuItem
+                  render={
+                    <a href={row.billUrl} target="_blank" rel="noopener noreferrer" />
+                  }
+                >
+                  <PaperclipIcon className="size-4" />
+                  View bill
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 disabled={Boolean(row.approvedAt)}
                 onClick={() => {

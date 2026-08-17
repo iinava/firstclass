@@ -94,10 +94,25 @@ export const DeleteItineraryDaySchema = z.object({ id: uuidSchema })
 
 // -------------------------------------------------------------------- images
 
+/**
+ * An uploaded file is stored as an app-relative URL (`/uploads/…`), so a bare
+ * `z.url()` — which demands a scheme — would reject our own uploads. External
+ * links already in the database still validate.
+ */
+const storedFileUrl = z
+  .string()
+  .trim()
+  .min(1, "Choose an image")
+  .max(500, "Must be 500 characters or fewer")
+  .refine(
+    (value) => value.startsWith("/") || /^https?:\/\//i.test(value),
+    "Enter a valid image URL"
+  )
+
 export const ItineraryImageSchema = z.object({
   itineraryId: uuidSchema,
   dayId: uuidSchema.nullable().optional(),
-  url: z.url("Enter a valid image URL"),
+  url: storedFileUrl,
   caption: optionalText(200),
   sortOrder: z.coerce.number().int().min(0).default(0),
 })

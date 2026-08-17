@@ -6,6 +6,7 @@ import { ActionFailure, defineAction } from "@/lib/action"
 import { diffChanges, recordAudit } from "@/lib/audit"
 import { generateShareToken, nextPackageCode, nextQuoteCode } from "@/lib/codes"
 import * as service from "@/lib/services/itinerary.service"
+import { storage } from "@/lib/storage"
 import { uuidSchema } from "@/validations/common.validation"
 import {
   CloneItinerarySchema,
@@ -21,6 +22,24 @@ import {
   UpdateItinerarySchema,
   UpdateItineraryStatusSchema,
 } from "@/validations/itinerary.validation"
+
+/**
+ * Unlinks a file that is no longer referenced. Best-effort on purpose: the
+ * database is already consistent by this point, so a failed unlink is a
+ * housekeeping problem and must not fail the user's save. `storage.delete`
+ * ignores anything that isn't ours, so externally hosted URLs pass through.
+ *
+ * Soft deletes (itineraries, expenses) deliberately keep their files — the
+ * record can be restored, and it should still have its pictures.
+ */
+async function discardFile(url: string | null | undefined) {
+  if (!url) return
+  try {
+    await storage.delete(url)
+  } catch (error) {
+    console.error("[itineraries] could not remove file", url, error)
+  }
+}
 
 export const fetchItineraries = defineAction({
   name: "fetchItineraries",
@@ -89,6 +108,14 @@ export const updateItinerary = defineAction({
       fixedPrice: values.fixedPrice ?? null,
     })
     if (!itinerary) throw new ActionFailure("Itinerary not found")
+
+    // The cover was replaced or cleared. `cloneItinerary` copies the URL, so
+    // only unlink once no live itinerary points at the old file any more.
+    if (before.coverImageUrl && before.coverImageUrl !== itinerary.coverImageUrl) {
+      if ((await service.countCoverImageUses(before.coverImageUrl)) === 0) {
+        await discardFile(before.coverImageUrl)
+      }
+    }
 
     await recordAudit({
       entity: "itineraries",
@@ -283,7 +310,13 @@ export const deleteImage = defineAction({
   permission: "itinerary:update",
   schema: DeleteItineraryImageSchema,
   handler: async ({ id }) => {
-    await service.deleteImage(id)
+    const removed = await service.deleteImage(id)
+    if (!removed) throw new ActionFailure("Photo not found")
+
+    // Gallery rows are hard-deleted, so the file goes with them.
+    await discardFile(removed.url)
+
+    revalidatePath(`/admin/packages/${removed.itineraryId}`)
     return { id }
   },
 })
