@@ -28,37 +28,36 @@ export function StatCard({
   className,
 }: StatCardProps) {
   return (
-    <div
-      className={cn("flex flex-col gap-3 rounded-xl border bg-card p-5", className)}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm text-muted-foreground">{label}</span>
-        {Icon && (
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-            <Icon className="size-4 text-muted-foreground" />
-          </div>
+    <div className={cn("rounded-xl border bg-card p-5", className)}>
+      {/* Sentence case, not uppercase tracking — this is a sentence about the
+          business, not a column heading in a report. */}
+      <div className="flex items-center gap-2">
+        {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}
+        <span className="truncate text-sm text-muted-foreground">{label}</span>
+      </div>
+
+      <p
+        className={cn(
+          "mt-2.5 text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums",
+          TONE_CLASS[tone]
         )}
-      </div>
-      <div>
-        <p
-          className={cn(
-            "text-2xl font-bold tracking-tight tabular-nums",
-            TONE_CLASS[tone]
-          )}
-        >
-          {value}
-        </p>
-        {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
-      </div>
+      >
+        {value}
+      </p>
+
+      {sub && (
+        <p className="mt-2 truncate text-[13px] text-muted-foreground">{sub}</p>
+      )}
     </div>
   )
 }
 
 export function StatCardSkeleton() {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border bg-card p-5">
+    <div className="rounded-xl border bg-card p-5">
       <Skeleton className="h-4 w-24" />
-      <Skeleton className="h-7 w-20" />
+      <Skeleton className="mt-2.5 h-7 w-28" />
+      <Skeleton className="mt-2 h-3.5 w-20" />
     </div>
   )
 }

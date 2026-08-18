@@ -115,7 +115,7 @@ export function PaymentsView() {
             >
               {row.number}
             </p>
-            <p className="truncate text-xs text-muted-foreground">{row.customerName}</p>
+            <p className="truncate text-[13px] text-muted-foreground">{row.customerName}</p>
           </div>
         ),
       },
@@ -125,7 +125,7 @@ export function PaymentsView() {
         hideOnMobile: true,
         cell: (row) => (
           <Link
-            href={`/admin/bookings/${row.bookingId}`}
+            href={`/admin/trips/${row.bookingId}`}
             className="font-mono text-xs hover:underline"
           >
             {row.bookingCode}
@@ -134,6 +134,7 @@ export function PaymentsView() {
       },
       {
         key: "amount",
+        align: "right",
         header: "Amount",
         cell: (row) => (
           <div className="tabular-nums">
@@ -194,8 +195,8 @@ export function PaymentsView() {
         header: "Customer",
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate font-medium">{row.customerName}</p>
-            <p className="truncate font-mono text-xs text-muted-foreground">
+            <p className="truncate text-[15px] font-medium">{row.customerName}</p>
+            <p className="truncate text-[13px] text-muted-foreground">
               {row.code} · {row.title}
             </p>
           </div>
@@ -250,6 +251,7 @@ export function PaymentsView() {
       },
       {
         key: "balance",
+        align: "right",
         header: "Due",
         cell: (row) => (
           <span className="tabular-nums font-medium text-amber-500">
@@ -265,7 +267,7 @@ export function PaymentsView() {
           <Button
             size="sm"
             variant="outline"
-            render={<Link href={`/admin/bookings/${row.bookingId}`} />}
+            render={<Link href={`/admin/trips/${row.bookingId}`} />}
           >
             Collect
           </Button>
@@ -333,7 +335,7 @@ export function PaymentsView() {
           getRowId={(row) => row.id}
           isLoading={isLoading || isFetching}
           emptyTitle="No payments recorded"
-          emptyDescription="Record payments from a booking page as they come in."
+          emptyDescription="Record payments from a trip page as they come in."
           pagination={
             data
               ? {

@@ -34,14 +34,14 @@ export function LeadStatsTiles({ stats }: { stats?: LeadStats }) {
       <StatCard
         label="Won"
         value={formatNumber(stats.won)}
-        sub="Converted to bookings"
+        sub="Converted to trips"
         icon={CheckCircle2Icon}
         tone="positive"
       />
       <StatCard
         label="Lost"
         value={formatNumber(stats.lost)}
-        sub="Closed without booking"
+        sub="Closed without a trip"
         icon={XCircleIcon}
         tone={stats.lost > stats.won ? "negative" : "default"}
       />

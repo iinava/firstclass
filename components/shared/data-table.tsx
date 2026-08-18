@@ -1,7 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { ChevronLeftIcon, ChevronRightIcon, InboxIcon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronUpIcon,
+  ChevronsUpDownIcon,
+  InboxIcon,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -24,6 +31,11 @@ export interface DataTableColumn<T> {
   sortable?: boolean
   /** Hide below the md breakpoint to keep mobile tables readable. */
   hideOnMobile?: boolean
+  /**
+   * Money and counts read as "right", so the digits line up against a common
+   * edge and magnitudes are comparable down the column.
+   */
+  align?: "left" | "right"
 }
 
 interface DataTableProps<T> {
@@ -76,20 +88,29 @@ export function DataTable<T>({
   const showSkeleton = isLoading && !rows?.length
   const showEmpty = !isLoading && rows?.length === 0
 
+  // One horizontal rhythm for every cell in every table, so columns line up
+  // with the card edge instead of hugging it.
+  const cellX = "px-4 first:pl-5 last:pr-5"
+
   return (
-    <div className={cn("flex flex-col gap-3", className)}>
-      <div className="rounded-xl border bg-card overflow-hidden">
+    <div className={cn("flex flex-col", className)}>
+      <div className="overflow-hidden rounded-xl border bg-card">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="hover:bg-transparent">
+              {/* Plain sentence case on a plain background. Uppercase tracking
+                  on a filled bar is the visual signature of a spreadsheet. */}
+              <TableRow className="border-b hover:bg-transparent">
                 {columns.map((column) => (
                   <TableHead
                     key={column.key}
                     className={cn(
-                      "whitespace-nowrap",
+                      "h-11 whitespace-nowrap text-[13px] font-normal text-muted-foreground",
+                      cellX,
+                      column.align === "right" && "text-right",
                       column.hideOnMobile && "hidden md:table-cell",
-                      column.sortable && "cursor-pointer select-none",
+                      column.sortable &&
+                        "cursor-pointer select-none transition-colors hover:text-foreground",
                       column.headerClassName
                     )}
                     onClick={
@@ -105,13 +126,26 @@ export function DataTable<T>({
                         : undefined
                     }
                   >
-                    <span className="inline-flex items-center gap-1">
-                      {column.header}
-                      {sort?.sortBy === column.key && (
-                        <span aria-hidden className="text-muted-foreground text-xs">
-                          {sort.sortDir === "asc" ? "↑" : "↓"}
-                        </span>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1",
+                        column.align === "right" && "flex-row-reverse"
                       )}
+                    >
+                      {column.header}
+                      {column.sortable &&
+                        (sort?.sortBy === column.key ? (
+                          sort.sortDir === "asc" ? (
+                            <ChevronUpIcon aria-hidden className="size-3.5 shrink-0" />
+                          ) : (
+                            <ChevronDownIcon aria-hidden className="size-3.5 shrink-0" />
+                          )
+                        ) : (
+                          <ChevronsUpDownIcon
+                            aria-hidden
+                            className="size-3.5 shrink-0 opacity-30"
+                          />
+                        ))}
                     </span>
                   </TableHead>
                 ))}
@@ -125,7 +159,11 @@ export function DataTable<T>({
                     {columns.map((column) => (
                       <TableCell
                         key={column.key}
-                        className={cn(column.hideOnMobile && "hidden md:table-cell")}
+                        className={cn(
+                          "h-[4.5rem]",
+                          cellX,
+                          column.hideOnMobile && "hidden md:table-cell"
+                        )}
                       >
                         <Skeleton className="h-4 w-full max-w-[140px]" />
                       </TableCell>
@@ -135,15 +173,15 @@ export function DataTable<T>({
 
               {showEmpty && (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={columns.length} className="h-64">
-                    <div className="flex flex-col items-center justify-center gap-3 text-center">
-                      <div className="flex size-11 items-center justify-center rounded-full bg-muted">
+                  <TableCell colSpan={columns.length} className="h-72">
+                    <div className="mx-auto flex max-w-sm flex-col items-center justify-center gap-4 text-center">
+                      <div className="flex size-12 items-center justify-center rounded-full bg-muted">
                         <InboxIcon className="size-5 text-muted-foreground" />
                       </div>
-                      <div>
+                      <div className="space-y-1">
                         <p className="text-sm font-medium">{emptyTitle}</p>
                         {emptyDescription && (
-                          <p className="mt-1 text-sm text-muted-foreground">
+                          <p className="text-sm text-balance text-muted-foreground">
                             {emptyDescription}
                           </p>
                         )}
@@ -167,7 +205,12 @@ export function DataTable<T>({
                   {columns.map((column) => (
                     <TableCell
                       key={column.key}
+                      // A fixed row height keeps one- and two-line cells from
+                      // making the table ripple as you scan down it.
                       className={cn(
+                        "h-[4.5rem] py-2",
+                        cellX,
+                        column.align === "right" && "text-right",
                         column.hideOnMobile && "hidden md:table-cell",
                         column.className
                       )}
@@ -180,43 +223,47 @@ export function DataTable<T>({
             </TableBody>
           </Table>
         </div>
-      </div>
 
-      {pagination && pagination.total > 0 && (
-        <div className="flex items-center justify-between gap-4 px-1">
-          <p className="text-xs text-muted-foreground">
-            Showing{" "}
-            <span className="font-medium text-foreground">
-              {(pagination.page - 1) * pagination.pageSize + 1}–
-              {Math.min(pagination.page * pagination.pageSize, pagination.total)}
-            </span>{" "}
-            of <span className="font-medium text-foreground">{pagination.total}</span>
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page <= 1}
-              onClick={() => pagination.onPageChange(pagination.page - 1)}
-            >
-              <ChevronLeftIcon data-icon="inline-start" />
-              Previous
-            </Button>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {pagination.page} / {pagination.pageCount}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page >= pagination.pageCount}
-              onClick={() => pagination.onPageChange(pagination.page + 1)}
-            >
-              Next
-              <ChevronRightIcon data-icon="inline-end" />
-            </Button>
+        {/* Inside the card, not floating under it — the count and the rows it
+            describes stay visibly part of the same object. */}
+        {pagination && pagination.total > 0 && (
+          <div className="flex items-center justify-between gap-4 border-t px-5 py-3">
+            <p className="text-xs text-muted-foreground tabular-nums">
+              <span className="font-medium text-foreground">
+                {(pagination.page - 1) * pagination.pageSize + 1}–
+                {Math.min(pagination.page * pagination.pageSize, pagination.total)}
+              </span>{" "}
+              of <span className="font-medium text-foreground">{pagination.total}</span>
+            </p>
+
+            {pagination.pageCount > 1 && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Previous page"
+                  disabled={pagination.page <= 1}
+                  onClick={() => pagination.onPageChange(pagination.page - 1)}
+                >
+                  <ChevronLeftIcon className="size-4" />
+                </Button>
+                <span className="px-1 text-xs text-muted-foreground tabular-nums">
+                  {pagination.page} / {pagination.pageCount}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Next page"
+                  disabled={pagination.page >= pagination.pageCount}
+                  onClick={() => pagination.onPageChange(pagination.page + 1)}
+                >
+                  <ChevronRightIcon className="size-4" />
+                </Button>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

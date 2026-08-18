@@ -202,7 +202,7 @@ export const assignVehicle = defineAction({
       session,
     })
 
-    revalidatePath(`/admin/bookings/${input.bookingId}`)
+    revalidatePath(`/admin/trips/${input.bookingId}`)
     return assignment
   },
 })
@@ -219,7 +219,7 @@ export const updateAssignment = defineAction({
       endOdometer: values.endOdometer ?? null,
     })
     if (!assignment) throw new ActionFailure("Assignment not found")
-    revalidatePath(`/admin/bookings/${assignment.bookingId}`)
+    revalidatePath(`/admin/trips/${assignment.bookingId}`)
     return assignment
   },
 })

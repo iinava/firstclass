@@ -90,9 +90,9 @@ export function CustomersView() {
         sortable: true,
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate font-medium">{row.name}</p>
+            <p className="truncate text-[15px] font-medium">{row.name}</p>
             {row.city && (
-              <p className="truncate text-xs text-muted-foreground">{row.city}</p>
+              <p className="truncate text-[13px] text-muted-foreground">{row.city}</p>
             )}
           </div>
         ),
@@ -174,7 +174,7 @@ export function CustomersView() {
   )
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
           <InputGroup className="w-full sm:max-w-xs">
@@ -256,7 +256,7 @@ export function CustomersView() {
         open={Boolean(deleting)}
         onOpenChange={(open) => !open && setDeleting(null)}
         title={`Delete ${deleting?.name}?`}
-        description="The record is archived, not erased — it stays available in reports and audit history. Customers with bookings cannot be deleted."
+        description="The record is archived, not erased — it stays available in reports and audit history. Customers with trips cannot be deleted."
         confirmLabel="Delete"
         variant="destructive"
         isPending={removeMutation.isPending}

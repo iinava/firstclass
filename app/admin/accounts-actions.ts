@@ -1,12 +1,10 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { z } from "zod"
 import { ActionFailure, defineAction } from "@/lib/action"
 import { recordAudit } from "@/lib/audit"
 import {
   nextExpenseNumber,
-  nextInvoiceNumber,
   nextReceiptNumber,
   nextSupplierPaymentNumber,
 } from "@/lib/codes"
@@ -14,165 +12,19 @@ import { formatMoney } from "@/lib/money"
 import * as accounts from "@/lib/services/accounts.service"
 import * as bookingService from "@/lib/services/booking.service"
 import { storage } from "@/lib/storage"
-import { uuidSchema } from "@/validations/common.validation"
 import {
   ApproveExpenseSchema,
-  CancelInvoiceSchema,
-  CreateInvoiceSchema,
   CreateReceiptSchema,
   CreateSupplierPaymentSchema,
   DeleteExpenseSchema,
   ExpenseCategorySchema,
   ExpenseFormSchema,
   ExpenseListParamsSchema,
-  InvoiceListParamsSchema,
   ReceiptListParamsSchema,
   UpdateExpenseSchema,
-  UpdateInvoiceStatusSchema,
   VoidReceiptSchema,
   VoidSupplierPaymentSchema,
 } from "@/validations/accounts.validation"
-
-// ------------------------------------------------------------------ invoices
-
-export const fetchInvoices = defineAction({
-  name: "fetchInvoices",
-  permission: "invoice:view",
-  schema: InvoiceListParamsSchema,
-  handler: async (params) => accounts.listInvoices(params),
-})
-
-export const fetchInvoiceLines = defineAction({
-  name: "fetchInvoiceLines",
-  permission: "invoice:view",
-  schema: z.object({ invoiceId: uuidSchema }),
-  handler: async ({ invoiceId }) => accounts.listInvoiceLines(invoiceId),
-})
-
-/**
- * Generates the invoice from the booking's stored totals rather than re-asking
- * for amounts — the invoice can then never disagree with the trip it bills.
- */
-export const createInvoice = defineAction({
-  name: "createInvoice",
-  permission: "invoice:create",
-  schema: CreateInvoiceSchema,
-  handler: async (input, { session }) => {
-    const booking = await bookingService.getBookingRaw(input.bookingId)
-    if (!booking) throw new ActionFailure("Booking not found")
-    if (booking.status === "cancelled") {
-      throw new ActionFailure("A cancelled booking cannot be invoiced")
-    }
-
-    const existing = await accounts.getInvoiceByBooking(input.bookingId)
-    if (existing) {
-      throw new ActionFailure(`Invoice ${existing.number} already exists for this trip`)
-    }
-
-    const number = await nextInvoiceNumber(new Date(input.issueDate))
-    const paxLabel = `${booking.adults} adult${booking.adults === 1 ? "" : "s"}${
-      booking.children ? `, ${booking.children} child${booking.children === 1 ? "" : "ren"}` : ""
-    }`
-
-    const invoice = await accounts.createInvoice(
-      {
-        number,
-        bookingId: booking.id,
-        customerId: booking.customerId,
-        issueDate: input.issueDate,
-        dueDate: input.dueDate || null,
-        subtotal: booking.sellSubtotal,
-        discount: booking.discount,
-        taxRateBps: booking.taxRateBps,
-        taxAmount: booking.taxAmount,
-        total: booking.grandTotal,
-        status: "sent",
-        notes: input.notes,
-        terms: input.terms,
-        createdBy: session.userId,
-      },
-      [
-        {
-          description: `${booking.title}${booking.destination ? ` — ${booking.destination}` : ""} (${paxLabel})`,
-          quantity: 1,
-          unitPrice: booking.sellSubtotal,
-          amount: booking.sellSubtotal,
-          sortOrder: 0,
-        },
-      ]
-    )
-
-    // Receipts already taken as advance count against the new invoice.
-    const priorReceipts = await accounts.listReceiptsByBooking(booking.id)
-    const alreadyPaid = priorReceipts
-      .filter((r) => !r.voidedAt)
-      .reduce((sum, r) => sum + Number(r.amount), 0)
-    if (alreadyPaid > 0) {
-      await accounts.applyReceiptToInvoice(invoice.id, alreadyPaid)
-    }
-
-    await recordAudit({
-      entity: "invoices",
-      entityId: invoice.id,
-      action: "create",
-      summary: `Raised invoice ${number} for ${formatMoney(booking.grandTotal)}`,
-      session,
-    })
-
-    revalidatePath("/admin/invoices")
-    return invoice
-  },
-})
-
-export const updateInvoiceStatus = defineAction({
-  name: "updateInvoiceStatus",
-  permission: "invoice:update",
-  schema: UpdateInvoiceStatusSchema,
-  handler: async ({ id, status }, { session }) => {
-    const invoice = await accounts.updateInvoice(id, { status })
-    if (!invoice) throw new ActionFailure("Invoice not found")
-    await recordAudit({
-      entity: "invoices",
-      entityId: id,
-      action: "status_change",
-      summary: `Invoice ${invoice.number} marked ${status}`,
-      session,
-    })
-    revalidatePath("/admin/invoices")
-    return invoice
-  },
-})
-
-export const cancelInvoice = defineAction({
-  name: "cancelInvoice",
-  permission: "invoice:cancel",
-  schema: CancelInvoiceSchema,
-  handler: async ({ id, reason }, { session }) => {
-    const before = await accounts.getInvoice(id)
-    if (!before) throw new ActionFailure("Invoice not found")
-    if (Number(before.amountPaid) > 0) {
-      throw new ActionFailure(
-        "Payments exist against this invoice — void the receipts first"
-      )
-    }
-
-    const invoice = await accounts.updateInvoice(id, {
-      status: "cancelled",
-      cancelledAt: new Date(),
-      notes: reason,
-    })
-
-    await recordAudit({
-      entity: "invoices",
-      entityId: id,
-      action: "cancel",
-      summary: `Cancelled invoice ${before.number} — ${reason}`,
-      session,
-    })
-    revalidatePath("/admin/invoices")
-    return invoice
-  },
-})
 
 // ------------------------------------------------------------------ receipts
 
@@ -197,33 +49,28 @@ export const fetchOutstanding = defineAction({
   },
 })
 
-/** Records money in and keeps the linked invoice's paid total in step. */
+/** Records money received against a trip. */
 export const createReceipt = defineAction({
   name: "createReceipt",
   permission: "payment:create",
   schema: CreateReceiptSchema,
   handler: async (input, { session }) => {
     const booking = await bookingService.getBookingRaw(input.bookingId)
-    if (!booking) throw new ActionFailure("Booking not found")
+    if (!booking) throw new ActionFailure("Trip not found")
 
     const ledger = await bookingService.getBookingLedger(input.bookingId)
     if (input.amount > ledger.balance) {
       throw new ActionFailure(
-        `That is more than the outstanding balance of ${formatMoney(ledger.balance)}`,
-        { amount: [`Balance due is ${formatMoney(ledger.balance)}`] }
+        `Balance due on this trip is only ${formatMoney(ledger.balance)}`,
+        { amount: [`Cannot exceed ${formatMoney(ledger.balance)}`] }
       )
     }
 
     const number = await nextReceiptNumber(new Date(input.receivedAt))
-    const invoice =
-      input.invoiceId
-        ? await accounts.getInvoice(input.invoiceId)
-        : await accounts.getInvoiceByBooking(input.bookingId)
 
     const receipt = await accounts.createReceipt({
       number,
       bookingId: input.bookingId,
-      invoiceId: invoice?.id ?? null,
       customerId: booking.customerId,
       amount: input.amount,
       mode: input.mode,
@@ -234,10 +81,6 @@ export const createReceipt = defineAction({
       receivedBy: session.userId,
     })
 
-    if (invoice) {
-      await accounts.applyReceiptToInvoice(invoice.id, input.amount)
-    }
-
     await recordAudit({
       entity: "receipts",
       entityId: receipt.id,
@@ -247,7 +90,7 @@ export const createReceipt = defineAction({
     })
 
     revalidatePath("/admin/payments")
-    revalidatePath(`/admin/bookings/${input.bookingId}`)
+    revalidatePath(`/admin/trips/${input.bookingId}`)
     return receipt
   },
 })
@@ -262,10 +105,6 @@ export const voidReceipt = defineAction({
     if (before.voidedAt) throw new ActionFailure("This receipt is already void")
 
     const receipt = await accounts.voidReceipt(id, reason)
-    // Reverse the invoice allocation rather than editing the original entry.
-    if (before.invoiceId) {
-      await accounts.applyReceiptToInvoice(before.invoiceId, -Number(before.amount))
-    }
 
     await recordAudit({
       entity: "receipts",

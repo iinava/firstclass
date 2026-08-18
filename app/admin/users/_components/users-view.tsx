@@ -114,13 +114,13 @@ export function UsersView({
               {initials(row.name ?? row.username)}
             </div>
             <div className="min-w-0">
-              <p className="truncate font-medium">
+              <p className="truncate text-[15px] font-medium">
                 {row.name ?? row.username}
                 {row.id === currentUserId && (
                   <span className="ml-2 text-xs text-muted-foreground">(you)</span>
                 )}
               </p>
-              <p className="truncate font-mono text-xs text-muted-foreground">
+              <p className="truncate text-[13px] text-muted-foreground">
                 {row.username}
               </p>
             </div>
@@ -222,7 +222,7 @@ export function UsersView({
   )
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
           <InputGroup className="w-full sm:max-w-xs">
@@ -307,7 +307,7 @@ export function UsersView({
         open={Boolean(deactivating)}
         onOpenChange={(open) => !open && setDeactivating(null)}
         title={`Deactivate ${deactivating?.username}?`}
-        description="They will no longer be able to sign in. The account is kept so their leads, bookings and audit history stay intact."
+        description="They will no longer be able to sign in. The account is kept so their enquiries, trips and audit history stay intact."
         confirmLabel="Deactivate"
         variant="destructive"
         isPending={deactivateMutation.isPending}

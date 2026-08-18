@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     template: "%s · First Class",
   },
   description:
-    "Enquiry to settlement: leads, itineraries, bookings, costing and accounts for First Class Travels.",
+    "Enquiry to settlement: enquiries, itineraries, trips, costing and accounts for First Class Travels.",
 };
 
 export default function RootLayout({

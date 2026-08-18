@@ -55,7 +55,7 @@ export function TripCostDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto]">
         {open && (
           <TripCostForm
             key={cost?.id ?? "new"}
@@ -139,7 +139,7 @@ function TripCostForm({
         </DialogDescription>
       </DialogHeader>
 
-      <form id="trip-cost-form" onSubmit={onSubmit} noValidate>
+      <form id="trip-cost-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
         <FieldGroup>
           <div className="grid gap-4 sm:grid-cols-2">
             <SelectField

@@ -107,7 +107,7 @@ export function FollowupsView() {
               >
                 {formatRelativeDay(row.dueAt)}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 {formatDateTime(row.dueAt)}
               </p>
             </div>
@@ -119,8 +119,8 @@ export function FollowupsView() {
         header: "Customer",
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate font-medium">{row.customerName}</p>
-            <p className="truncate font-mono text-xs text-muted-foreground">
+            <p className="truncate text-[15px] font-medium">{row.customerName}</p>
+            <p className="truncate text-[13px] text-muted-foreground">
               {row.leadCode}
               {row.destination ? ` · ${row.destination}` : ""}
             </p>
@@ -214,7 +214,7 @@ export function FollowupsView() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-1.5" role="tablist">
           {BUCKETS.map((item) => {
             const active = bucket === item.key

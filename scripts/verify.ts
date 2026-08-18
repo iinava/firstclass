@@ -13,7 +13,7 @@ import { eq, like } from "drizzle-orm"
 import { db } from "../db/drizzle"
 import { customers } from "../db/schemas/customer.schema"
 import { bookings } from "../db/schemas/booking.schema"
-import { invoices, receipts } from "../db/schemas/accounts.schema"
+import { receipts } from "../db/schemas/accounts.schema"
 import { tripCostItems } from "../db/schemas/trip-cost.schema"
 import { drivers, vehicleAssignments, vehicles } from "../db/schemas/vehicle.schema"
 import { suppliers } from "../db/schemas/supplier.schema"
@@ -22,8 +22,7 @@ import * as customerSvc from "../lib/services/customer.service"
 import * as supplierSvc from "../lib/services/supplier.service"
 import * as vehicleSvc from "../lib/services/vehicle.service"
 import * as bookingSvc from "../lib/services/booking.service"
-import * as accountsSvc from "../lib/services/accounts.service"
-import { nextInvoiceNumber, nextLeadCode, financialYear } from "../lib/codes"
+import { nextLeadCode, financialYear } from "../lib/codes"
 import { computeTotals, toPaise, formatMoney, marginPercent } from "../lib/money"
 import { hasPermission, canViewAll } from "../lib/rbac"
 
@@ -45,7 +44,6 @@ async function cleanup() {
   const bs = await db.select().from(bookings).where(like(bookings.code, "%RULE%"))
   for (const b of bs) {
     await db.delete(receipts).where(eq(receipts.bookingId, b.id))
-    await db.delete(invoices).where(eq(invoices.bookingId, b.id))
     await db.delete(tripCostItems).where(eq(tripCostItems.bookingId, b.id))
     await db.delete(vehicleAssignments).where(eq(vehicleAssignments.bookingId, b.id))
     await db.delete(bookings).where(eq(bookings.id, b.id))
@@ -92,8 +90,6 @@ async function main() {
   console.log("\n— document numbering —")
   const codes = await Promise.all([nextLeadCode(), nextLeadCode(), nextLeadCode()])
   ok("lead codes are unique under concurrency", new Set(codes).size === 3, codes.join(","))
-  const inv = await nextInvoiceNumber()
-  ok("invoice number carries financial year", inv.includes(financialYear()), inv)
   ok("FY for August 2026 is 26-27", financialYear(new Date("2026-08-15")) === "26-27")
   ok("FY for Feb 2026 is 25-26", financialYear(new Date("2026-02-15")) === "25-26")
 
@@ -163,50 +159,6 @@ async function main() {
   )
   ok("profit = revenue - cost", ledger1.profit === 5460000 - 1920000)
   ok("balance equals full total before payment", ledger1.balance === 5460000)
-
-  console.log("\n— receipt → invoice allocation —")
-  const invoice = await accountsSvc.createInvoice(
-    {
-      number: `FC/RULE/${Date.now() % 100000}`,
-      bookingId: booking.id,
-      customerId: a.customer.id,
-      issueDate: start,
-      subtotal: 5400000,
-      discount: 200000,
-      taxRateBps: 500,
-      taxAmount: 260000,
-      total: 5460000,
-      status: "sent",
-    },
-    [{ description: "Trip", quantity: 1, unitPrice: 5400000, amount: 5400000, sortOrder: 0 }]
-  )
-
-  await accountsSvc.applyReceiptToInvoice(invoice.id, 2000000)
-  let fresh = await accountsSvc.getInvoice(invoice.id)
-  ok("partial payment sets partially_paid", fresh?.status === "partially_paid", fresh?.status)
-  ok("amountPaid incremented", Number(fresh?.amountPaid) === 2000000)
-
-  await accountsSvc.applyReceiptToInvoice(invoice.id, 3460000)
-  fresh = await accountsSvc.getInvoice(invoice.id)
-  ok("full payment sets paid", fresh?.status === "paid", fresh?.status)
-  ok("amountPaid totals correctly", Number(fresh?.amountPaid) === 5460000)
-
-  // Concurrent increments must not lose writes (this is why it is SQL-side).
-  await Promise.all([
-    accountsSvc.applyReceiptToInvoice(invoice.id, 100),
-    accountsSvc.applyReceiptToInvoice(invoice.id, 100),
-    accountsSvc.applyReceiptToInvoice(invoice.id, 100),
-  ])
-  fresh = await accountsSvc.getInvoice(invoice.id)
-  ok(
-    "concurrent allocations do not lose updates",
-    Number(fresh?.amountPaid) === 5460300,
-    `got ${fresh?.amountPaid}`
-  )
-
-  await accountsSvc.applyReceiptToInvoice(invoice.id, -5460300)
-  fresh = await accountsSvc.getInvoice(invoice.id)
-  ok("voiding reverses the allocation", Number(fresh?.amountPaid) === 0)
 
   console.log("\n— vehicle double-booking —")
   const [driver] = await db

@@ -19,7 +19,7 @@ export default function ExpensesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
+    <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
       <PageHeader
         title="Expenses"
         description="Trip costs on the road and office overheads, by category."

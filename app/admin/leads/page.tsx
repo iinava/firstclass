@@ -12,7 +12,7 @@ import { LeadsView } from "./_components/leads-view"
 import { LeadsViewSkeleton } from "./_components/leads-view-skeleton"
 import { safeListParams } from "@/validations/common.validation"
 
-export const metadata: Metadata = { title: "Leads" }
+export const metadata: Metadata = { title: "Enquiries" }
 
 export default function LeadsPage({
   searchParams,
@@ -20,9 +20,9 @@ export default function LeadsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
+    <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
       <PageHeader
-        title="Leads"
+        title="Enquiries"
         description="Every enquiry, from first call to won or lost."
       />
       <Suspense fallback={<LeadsViewSkeleton />}>

@@ -137,7 +137,7 @@ export function FleetView() {
         cell: (row) => (
           <div className="min-w-0">
             <p className="truncate font-medium font-mono">{row.regNumber}</p>
-            <p className="truncate text-xs text-muted-foreground">
+            <p className="truncate text-[13px] text-muted-foreground">
               {[row.make, row.model].filter(Boolean).join(" ") ||
                 VEHICLE_TYPE_LABELS[row.type]}{" "}
               · {row.seatingCapacity} seats
@@ -267,9 +267,9 @@ export function FleetView() {
         header: "Driver",
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate font-medium">{row.name}</p>
+            <p className="truncate text-[15px] font-medium">{row.name}</p>
             {row.licenseNumber && (
-              <p className="truncate text-xs text-muted-foreground">
+              <p className="truncate text-[13px] text-muted-foreground">
                 Licence {row.licenseNumber}
               </p>
             )}

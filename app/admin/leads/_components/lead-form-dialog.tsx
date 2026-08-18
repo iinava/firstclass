@@ -129,7 +129,7 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
 
   return (
     <Dialog open={open} onOpenChange={isPending ? undefined : onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto]">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit enquiry" : "New enquiry"}</DialogTitle>
           <DialogDescription>
@@ -139,7 +139,7 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
           </DialogDescription>
         </DialogHeader>
 
-        <form id="lead-form" onSubmit={onSubmit} noValidate>
+        <form id="lead-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
           <FieldGroup>
             <div className="grid gap-4 sm:grid-cols-2">
               <Controller

@@ -92,8 +92,8 @@ export function EmployeesView() {
         header: "Employee",
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate font-medium">{row.name}</p>
-            <p className="truncate font-mono text-xs text-muted-foreground">
+            <p className="truncate text-[15px] font-medium">{row.name}</p>
+            <p className="truncate text-[13px] text-muted-foreground">
               {row.empCode}
               {row.designation ? ` · ${row.designation}` : ""}
             </p>
@@ -193,7 +193,7 @@ export function EmployeesView() {
   )
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
           <InputGroup className="w-full sm:max-w-xs">

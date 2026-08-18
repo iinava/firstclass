@@ -12,30 +12,30 @@ import {
   listTripCosts,
 } from "@/lib/services/booking.service"
 import { listAssignmentsByBooking } from "@/lib/services/vehicle.service"
-import { BookingDetail } from "./_components/booking-detail"
+import { TripDetail } from "./_components/trip-detail"
 
-export const metadata: Metadata = { title: "Booking" }
+export const metadata: Metadata = { title: "Trip" }
 
-export default function BookingDetailPage({
+export default function TripDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
+    <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
       <Suspense fallback={<DetailSkeleton />}>
-        <BookingLoader params={params} />
+        <TripLoader params={params} />
       </Suspense>
     </div>
   )
 }
 
-async function BookingLoader({ params }: { params: Promise<{ id: string }> }) {
+async function TripLoader({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("booking:view")
   const { id } = await params
 
-  const booking = await getBooking(id)
-  if (!booking) notFound()
+  const trip = await getBooking(id)
+  if (!trip) notFound()
 
   const queryClient = getQueryClient()
   await Promise.all([
@@ -59,7 +59,7 @@ async function BookingLoader({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <Hydrate client={queryClient}>
-      <BookingDetail bookingId={id} />
+      <TripDetail tripId={id} />
     </Hydrate>
   )
 }

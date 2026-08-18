@@ -51,10 +51,6 @@ export const PERMISSIONS = [
   "cost:update",
   "cost:delete",
 
-  "invoice:view",
-  "invoice:create",
-  "invoice:update",
-  "invoice:cancel",
 
   "payment:view",
   "payment:create",
@@ -134,10 +130,6 @@ const ACCOUNTS: Permission[] = [
   "vehicle:view",
   "cost:view",
   "cost:update",
-  "invoice:view",
-  "invoice:create",
-  "invoice:update",
-  "invoice:cancel",
   "payment:view",
   "payment:create",
   "payment:void",

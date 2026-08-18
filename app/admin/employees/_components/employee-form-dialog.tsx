@@ -65,7 +65,7 @@ export function EmployeeFormDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto]">
         {open && (
           <EmployeeForm
             key={employee?.id ?? "new"}
@@ -141,7 +141,7 @@ function EmployeeForm({
         </DialogDescription>
       </DialogHeader>
 
-      <form id="employee-form" onSubmit={onSubmit} noValidate>
+      <form id="employee-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
         <FieldGroup>
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField control={form.control} name="name" label="Name" autoFocus />

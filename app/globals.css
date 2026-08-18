@@ -161,3 +161,23 @@
     @apply font-sans;
   }
 }
+/**
+ * Printing. Only the trip invoice is ever printed, so the rule is blunt: strip
+ * the app chrome and force a light page regardless of the user's theme.
+ */
+@media print {
+  [data-slot="sidebar-wrapper"] > [data-slot="sidebar"],
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}

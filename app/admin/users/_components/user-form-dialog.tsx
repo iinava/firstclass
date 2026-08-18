@@ -57,7 +57,7 @@ export function UserFormDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto]">
         {open && (
           <UserForm
             key={user?.id ?? "new"}
@@ -132,7 +132,7 @@ function UserForm({
         </DialogDescription>
       </DialogHeader>
 
-      <form id="user-form" onSubmit={onSubmit} noValidate>
+      <form id="user-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
         <FieldGroup>
           <TextField
             control={form.control}

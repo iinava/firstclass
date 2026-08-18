@@ -19,7 +19,7 @@ export default function SuppliersPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
+    <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
       <PageHeader
         title="Suppliers"
         description="Hotels, transporters, guides and vendors you buy from."

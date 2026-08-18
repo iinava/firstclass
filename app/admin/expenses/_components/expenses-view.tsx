@@ -121,8 +121,8 @@ export function ExpensesView() {
         header: "Expense",
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate font-medium">{row.description}</p>
-            <p className="truncate text-xs text-muted-foreground">
+            <p className="truncate text-[15px] font-medium">{row.description}</p>
+            <p className="truncate text-[13px] text-muted-foreground">
               {row.number}
               {row.categoryName ? ` · ${row.categoryName}` : ""}
             </p>
@@ -131,6 +131,7 @@ export function ExpensesView() {
       },
       {
         key: "amount",
+        align: "right",
         header: "Amount",
         cell: (row) => (
           <span className="tabular-nums font-medium">
@@ -145,7 +146,7 @@ export function ExpensesView() {
         cell: (row) =>
           row.bookingCode ? (
             <Link
-              href={`/admin/bookings/${row.bookingId}`}
+              href={`/admin/trips/${row.bookingId}`}
               className="font-mono text-xs hover:underline"
             >
               {row.bookingCode}

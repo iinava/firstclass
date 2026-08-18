@@ -53,7 +53,14 @@ export function useCrudForm<TValues extends FieldValues, TOutput = unknown>({
   const form = useForm<TValues>({
     // The resolver is structurally correct but its generics can't be expressed
     // against an open TValues; the schema itself enforces the shape at runtime.
-    resolver: standardSchemaResolver(schema) as unknown as Resolver<TValues>,
+    //
+    // `raw: true` is load-bearing: without it the resolver hands handleSubmit the
+    // *parsed* values, so a money field ("2000" -> 200000 paise) would be sent to
+    // the server action and transformed a second time (-> 20,000,000 paise). The
+    // server owns the single transform; the client only validates.
+    resolver: standardSchemaResolver(schema, undefined, {
+      raw: true,
+    }) as unknown as Resolver<TValues>,
     defaultValues,
     mode: "onBlur",
     ...formOptions,

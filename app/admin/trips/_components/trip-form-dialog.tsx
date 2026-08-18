@@ -58,28 +58,47 @@ const EMPTY: BookingFormValues = {
   internalNotes: "",
 }
 
-export function BookingFormDialog({
+/**
+ * Everything the enquiry already knows, so converting one is a review-and-confirm
+ * rather than a re-type. Shape is a subset of LeadListRow.
+ */
+export interface TripFromLead {
+  id: string
+  code: string
+  customerId: string
+  customerName: string
+  destination: string | null
+  travelDate: string | null
+  adults: number
+  children: number
+  budget: number | null
+  requirements: string | null
+  assignedTo: string | null
+}
+
+export function TripFormDialog({
   open,
   onOpenChange,
   booking,
   presetCustomerId,
-  presetLeadId,
+  fromLead,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   booking?: BookingListRow | null
   presetCustomerId?: string
-  presetLeadId?: string
+  /** Set to convert an enquiry — every field is pre-filled from it. */
+  fromLead?: TripFromLead | null
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto]">
         {open && (
-          <BookingForm
-            key={booking?.id ?? "new"}
+          <TripForm
+            key={booking?.id ?? fromLead?.id ?? "new"}
             booking={booking ?? null}
             presetCustomerId={presetCustomerId}
-            presetLeadId={presetLeadId}
+            fromLead={fromLead ?? null}
             onDone={() => onOpenChange(false)}
             onCancel={() => onOpenChange(false)}
           />
@@ -89,16 +108,16 @@ export function BookingFormDialog({
   )
 }
 
-function BookingForm({
+function TripForm({
   booking,
   presetCustomerId,
-  presetLeadId,
+  fromLead,
   onDone,
   onCancel,
 }: {
   booking: BookingListRow | null
   presetCustomerId?: string
-  presetLeadId?: string
+  fromLead: TripFromLead | null
   onDone: () => void
   onCancel: () => void
 }) {
@@ -110,27 +129,50 @@ function BookingForm({
     staleTime: 5 * 60 * 1000,
   })
 
-  const defaultValues = React.useMemo<BookingFormValues>(
-    () =>
-      booking
-        ? {
-            ...EMPTY,
-            customerId: booking.customerId,
-            title: booking.title,
-            destination: booking.destination ?? "",
-            startDate: booking.startDate,
-            endDate: booking.endDate,
-            adults: booking.adults,
-            children: booking.children,
-            infants: booking.infants,
-            pricingMode: "fixed",
-            sellSubtotal: String(toRupees(booking.grandTotal)),
-            discount: "0",
-            taxRatePercent: 0,
-          }
-        : { ...EMPTY, customerId: presetCustomerId ?? "", leadId: presetLeadId ?? null },
-    [booking, presetCustomerId, presetLeadId]
-  )
+  const defaultValues = React.useMemo<BookingFormValues>(() => {
+    if (booking) {
+      return {
+        ...EMPTY,
+        customerId: booking.customerId,
+        title: booking.title,
+        destination: booking.destination ?? "",
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+        adults: booking.adults,
+        children: booking.children,
+        infants: booking.infants,
+        pricingMode: "fixed",
+        sellSubtotal: String(toRupees(booking.grandTotal)),
+        discount: "0",
+        taxRatePercent: 0,
+      }
+    }
+
+    if (fromLead) {
+      // The enquiry's travel date seeds both ends — the agent adjusts the return
+      // date, which is faster than typing two dates from scratch.
+      const start = fromLead.travelDate ?? todayISO()
+      return {
+        ...EMPTY,
+        customerId: fromLead.customerId,
+        leadId: fromLead.id,
+        title: fromLead.destination
+          ? `${fromLead.destination} trip`
+          : `Trip for ${fromLead.customerName}`,
+        destination: fromLead.destination ?? "",
+        startDate: start,
+        endDate: start,
+        adults: fromLead.adults || 1,
+        children: fromLead.children,
+        // The quoted budget is the natural opening price.
+        sellSubtotal: fromLead.budget ? String(toRupees(fromLead.budget)) : "",
+        assignedTo: fromLead.assignedTo,
+        notes: fromLead.requirements ?? "",
+      }
+    }
+
+    return { ...EMPTY, customerId: presetCustomerId ?? "" }
+  }, [booking, presetCustomerId, fromLead])
 
   const { form, onSubmit, isPending } = useCrudForm<BookingFormValues>({
     schema: BookingFormSchema,
@@ -139,8 +181,12 @@ function BookingForm({
       booking
         ? updateBooking({ ...values, id: booking.id } as never)
         : createBooking(values as never),
-    successMessage: isEdit ? "Booking updated" : "Booking confirmed",
-    invalidate: [qk.bookings.all, qk.leads.all, qk.reports.all],
+    successMessage: isEdit
+      ? "Trip updated"
+      : fromLead
+        ? "Enquiry converted to trip"
+        : "Trip created",
+    invalidate: [qk.bookings.all, qk.leads.all, qk.followups.all, qk.reports.all],
     onSuccess: onDone,
   })
 
@@ -174,14 +220,17 @@ function BookingForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{isEdit ? "Edit booking" : "New booking"}</DialogTitle>
+        <DialogTitle>
+          {isEdit ? "Edit trip" : fromLead ? "Convert enquiry to trip" : "New trip"}
+        </DialogTitle>
         <DialogDescription>
-          Confirming a trip locks in the dates and price. Costs are added afterwards on
-          the booking page.
+          {fromLead
+            ? `Pre-filled from ${fromLead.code}. Check the dates and price, then confirm — the enquiry is marked won.`
+            : "Costs are added afterwards on the trip page."}
         </DialogDescription>
       </DialogHeader>
 
-      <form id="booking-form" onSubmit={onSubmit} noValidate>
+      <form id="trip-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
         <FieldGroup>
           <CustomerPicker control={form.control} name="customerId" />
 
@@ -309,9 +358,9 @@ function BookingForm({
         <Button type="button" variant="outline" onClick={onCancel} disabled={isPending}>
           Cancel
         </Button>
-        <Button type="submit" form="booking-form" disabled={isPending}>
+        <Button type="submit" form="trip-form" disabled={isPending}>
           {isPending && <Spinner data-icon="inline-start" />}
-          {isEdit ? "Save changes" : "Confirm booking"}
+          {isEdit ? "Save changes" : fromLead ? "Convert to trip" : "Create trip"}
         </Button>
       </DialogFooter>
     </>

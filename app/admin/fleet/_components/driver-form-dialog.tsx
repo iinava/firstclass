@@ -48,7 +48,7 @@ export function DriverFormDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto]">
         {open && (
           <DriverForm
             key={driver?.id ?? "new"}
@@ -113,7 +113,7 @@ function DriverForm({
         </DialogDescription>
       </DialogHeader>
 
-      <form id="driver-form" onSubmit={onSubmit} noValidate>
+      <form id="driver-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
         <FieldGroup>
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField control={form.control} name="name" label="Name" autoFocus />

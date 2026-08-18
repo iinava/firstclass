@@ -106,7 +106,7 @@ export function CustomerFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={isPending ? undefined : onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto]">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit customer" : "Add customer"}</DialogTitle>
           <DialogDescription>
@@ -116,7 +116,7 @@ export function CustomerFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form id="customer-form" onSubmit={onSubmit} noValidate>
+        <form id="customer-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
           <FieldGroup>
             <div className="grid gap-4 sm:grid-cols-2">
               <Controller

@@ -9,10 +9,10 @@ import {
   BusIcon,
   CalendarCheckIcon,
   ChartNoAxesCombinedIcon,
-  FileTextIcon,
   InfoIcon,
   LayoutDashboardIcon,
   MapIcon,
+  MapPinnedIcon,
   ReceiptIcon,
   Settings2Icon,
   ShieldIcon,
@@ -66,7 +66,7 @@ const NAV: NavGroup[] = [
     label: "Sales",
     items: [
       {
-        title: "Leads",
+        title: "Enquiries",
         url: "/admin/leads",
         icon: BriefcaseIcon,
         permissions: ["lead:view"],
@@ -95,9 +95,9 @@ const NAV: NavGroup[] = [
     label: "Operations",
     items: [
       {
-        title: "Bookings",
-        url: "/admin/bookings",
-        icon: CalendarCheckIcon,
+        title: "Trips",
+        url: "/admin/trips",
+        icon: MapPinnedIcon,
         permissions: ["booking:view"],
       },
       {
@@ -117,12 +117,6 @@ const NAV: NavGroup[] = [
   {
     label: "Accounts",
     items: [
-      {
-        title: "Invoices",
-        url: "/admin/invoices",
-        icon: FileTextIcon,
-        permissions: ["invoice:view"],
-      },
       {
         title: "Payments",
         url: "/admin/payments",
@@ -215,16 +209,16 @@ export function AppSidebar({
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="border-b border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link href="/admin" />}>
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <ShieldIcon className="size-4" />
               </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">First Class</span>
-                <span className="truncate text-xs text-muted-foreground">
+              <div className="grid flex-1 text-left leading-tight">
+                <span className="truncate text-sm font-semibold">First Class</span>
+                <span className="truncate text-xs text-sidebar-foreground/60">
                   Travel ERP
                 </span>
               </div>
@@ -235,7 +229,7 @@ export function AppSidebar({
 
       <SidebarContent>
         {groups.map((group) => (
-          <SidebarGroup key={group.label}>
+          <SidebarGroup key={group.label} className="py-1">
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarMenu>
               {group.items.map((item) => (
@@ -255,7 +249,7 @@ export function AppSidebar({
         ))}
       </SidebarContent>
 
-      <SidebarFooter>
+      <SidebarFooter className="border-t border-sidebar-border">
         <NavUser user={user} />
       </SidebarFooter>
       <SidebarRail />

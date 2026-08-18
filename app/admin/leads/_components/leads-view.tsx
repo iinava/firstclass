@@ -8,6 +8,7 @@ import {
   PencilIcon,
   PhoneIcon,
   PlusIcon,
+  RouteIcon,
   SearchIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -35,6 +36,7 @@ import { useDebouncedValue, useListParams } from "@/hooks/use-list-params"
 import { formatDate, formatPhone, formatRelativeDay } from "@/lib/format"
 import { formatMoneyShort } from "@/lib/money"
 import { qk } from "@/lib/query-keys"
+import { cn } from "@/lib/utils"
 import {
   LEAD_PRIORITIES,
   LEAD_STATUSES,
@@ -50,6 +52,7 @@ import {
 import { LeadFormDialog } from "./lead-form-dialog"
 import { LeadStatsTiles } from "./lead-stats-tiles"
 import { ScheduleFollowupDialog } from "@/app/admin/followups/_components/schedule-followup-dialog"
+import { TripFormDialog } from "@/app/admin/trips/_components/trip-form-dialog"
 
 const FILTER_KEYS = ["status", "priority", "assignedTo"] as const
 const PAGE_SIZE = 25
@@ -119,6 +122,7 @@ export function LeadsView() {
   const [editing, setEditing] = React.useState<LeadListRow | null>(null)
   const [deleting, setDeleting] = React.useState<LeadListRow | null>(null)
   const [schedulingFor, setSchedulingFor] = React.useState<LeadListRow | null>(null)
+  const [convertingLead, setConvertingLead] = React.useState<LeadListRow | null>(null)
 
   const statusMutation = useActionMutation({
     action: updateLeadStatus,
@@ -128,7 +132,7 @@ export function LeadsView() {
 
   const removeMutation = useActionMutation({
     action: deleteLead,
-    successMessage: "Lead deleted",
+    successMessage: "Enquiry deleted",
     invalidate: [qk.leads.all],
     onSuccess: () => setDeleting(null),
   })
@@ -137,74 +141,58 @@ export function LeadsView() {
     () => [
       {
         key: "code",
-        header: "Enquiry",
+        header: "Customer",
         sortable: true,
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate font-medium">{row.customerName}</p>
-            <p className="truncate font-mono text-xs text-muted-foreground">
-              {row.code}
-            </p>
+            <p className="truncate text-[15px] font-medium">{row.customerName}</p>
+            {/* The phone was its own column; it belongs with the name, and
+                tapping it should still dial without opening the row. */}
+            <a
+              href={`tel:${row.customerPhone}`}
+              className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground hover:underline"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <PhoneIcon className="size-3" />
+              {formatPhone(row.customerPhone)}
+            </a>
           </div>
-        ),
-      },
-      {
-        key: "phone",
-        header: "Phone",
-        hideOnMobile: true,
-        cell: (row) => (
-          <a
-            href={`tel:${row.customerPhone}`}
-            className="inline-flex items-center gap-1.5 tabular-nums hover:underline"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <PhoneIcon className="size-3 text-muted-foreground" />
-            {formatPhone(row.customerPhone)}
-          </a>
         ),
       },
       {
         key: "destination",
-        header: "Trip",
+        header: "Wants",
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate">{row.destination ?? "—"}</p>
-            <p className="truncate text-xs text-muted-foreground">
+            <p className="truncate text-[15px]">{row.destination ?? "Not said yet"}</p>
+            <p className="truncate text-[13px] text-muted-foreground">
               {row.travelDate ? formatDate(row.travelDate) : "Date TBD"} ·{" "}
               {row.adults + row.children} pax
+              {row.budget ? ` · ${formatMoneyShort(row.budget)} budget` : ""}
             </p>
           </div>
         ),
       },
       {
-        key: "budget",
-        header: "Budget",
-        sortable: true,
-        hideOnMobile: true,
-        cell: (row) =>
-          row.budget ? (
-            <span className="tabular-nums">{formatMoneyShort(row.budget)}</span>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          ),
-      },
-      {
         key: "nextFollowup",
-        header: "Next action",
+        header: "Next call",
         hideOnMobile: true,
         cell: (row) =>
           row.nextFollowupAt ? (
             <span
-              className={
+              className={cn(
+                "text-[15px]",
                 new Date(row.nextFollowupAt) < new Date()
-                  ? "text-red-500 font-medium"
+                  ? "font-medium text-red-600 dark:text-red-400"
                   : "text-muted-foreground"
-              }
+              )}
             >
               {formatRelativeDay(row.nextFollowupAt)}
             </span>
           ) : (
-            <span className="text-amber-500">Not scheduled</span>
+            <span className="text-[15px] text-amber-600 dark:text-amber-400">
+              Not scheduled
+            </span>
           ),
       },
       {
@@ -216,9 +204,26 @@ export function LeadsView() {
       {
         key: "actions",
         header: <span className="sr-only">Actions</span>,
-        className: "w-10",
+        className: "w-36",
         cell: (row) => (
-          <DropdownMenu>
+          <div
+            className="flex items-center justify-end gap-1"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {/* Winning the enquiry is the whole point of this table, so it is a
+                visible button rather than a menu item three clicks deep. */}
+            {row.status !== "lost" && (
+              <Button
+                variant={row.status === "won" ? "ghost" : "outline"}
+                size="sm"
+                onClick={() => setConvertingLead(row)}
+              >
+                <RouteIcon data-icon="inline-start" />
+                {row.status === "won" ? "New trip" : "Convert"}
+              </Button>
+            )}
+
+            <DropdownMenu>
             <DropdownMenuTrigger
               render={<Button variant="ghost" size="icon-sm" />}
               onClick={(event) => event.stopPropagation()}
@@ -274,7 +279,8 @@ export function LeadsView() {
                 Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+            </DropdownMenu>
+          </div>
         ),
       },
     ],
@@ -289,7 +295,7 @@ export function LeadsView() {
         <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
           <InputGroup className="w-full sm:max-w-xs">
             <InputGroupInput
-              placeholder="Search code, customer, destination…"
+              placeholder="Search name, phone or destination…"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               aria-label="Search leads"
@@ -380,11 +386,17 @@ export function LeadsView() {
         }
       />
 
+      <TripFormDialog
+        open={Boolean(convertingLead)}
+        onOpenChange={(open) => !open && setConvertingLead(null)}
+        fromLead={convertingLead}
+      />
+
       <ConfirmDialog
         open={Boolean(deleting)}
         onOpenChange={(open) => !open && setDeleting(null)}
         title={`Delete enquiry ${deleting?.code}?`}
-        description="The enquiry is archived and disappears from the pipeline. Won leads linked to a booking cannot be deleted."
+        description="The enquiry is archived and disappears from the pipeline. Won enquiries linked to a trip cannot be deleted."
         confirmLabel="Delete"
         variant="destructive"
         isPending={removeMutation.isPending}

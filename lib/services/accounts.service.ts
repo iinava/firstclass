@@ -4,12 +4,9 @@ import { db } from "@/db/drizzle"
 import {
   expenseCategories,
   expenses,
-  invoiceLines,
-  invoices,
   receipts,
   supplierPayments,
   type Expense,
-  type Invoice,
 } from "@/db/schemas/accounts.schema"
 import { bookings } from "@/db/schemas/booking.schema"
 import { customers } from "@/db/schemas/customer.schema"
@@ -19,148 +16,8 @@ import { vehicles } from "@/db/schemas/vehicle.schema"
 import type { PaginatedResult } from "@/validations/common.validation"
 import type {
   ExpenseListParams,
-  InvoiceListParams,
   ReceiptListParams,
 } from "@/validations/accounts.validation"
-
-// ------------------------------------------------------------------ invoices
-
-export interface InvoiceListRow {
-  id: string
-  number: string
-  status: Invoice["status"]
-  issueDate: string
-  dueDate: string | null
-  total: number
-  amountPaid: number
-  balance: number
-  bookingId: string
-  bookingCode: string
-  customerId: string
-  customerName: string
-}
-
-export async function listInvoices(
-  params: InvoiceListParams
-): Promise<PaginatedResult<InvoiceListRow>> {
-  const { page, pageSize, search, sortDir, status, customerId, from, to } = params
-
-  const filters = [isNull(invoices.deletedAt)]
-  if (search) {
-    const term = `%${search}%`
-    filters.push(
-      or(ilike(invoices.number, term), ilike(customers.name, term), ilike(bookings.code, term))!
-    )
-  }
-  if (status) filters.push(eq(invoices.status, status))
-  if (customerId) filters.push(eq(invoices.customerId, customerId))
-  if (from) filters.push(gte(invoices.issueDate, from))
-  if (to) filters.push(lte(invoices.issueDate, to))
-
-  const where = and(...filters)
-  const order = sortDir === "asc" ? asc(invoices.issueDate) : desc(invoices.issueDate)
-
-  const rowsPromise = db
-    .select({
-      id: invoices.id,
-      number: invoices.number,
-      status: invoices.status,
-      issueDate: invoices.issueDate,
-      dueDate: invoices.dueDate,
-      total: invoices.total,
-      amountPaid: invoices.amountPaid,
-      bookingId: invoices.bookingId,
-      bookingCode: bookings.code,
-      customerId: invoices.customerId,
-      customerName: customers.name,
-    })
-    .from(invoices)
-    .innerJoin(bookings, eq(bookings.id, invoices.bookingId))
-    .innerJoin(customers, eq(customers.id, invoices.customerId))
-    .where(where)
-    .orderBy(order)
-    .limit(pageSize)
-    .offset((page - 1) * pageSize)
-
-  const totalPromise = db
-    .select({ value: count() })
-    .from(invoices)
-    .innerJoin(bookings, eq(bookings.id, invoices.bookingId))
-    .innerJoin(customers, eq(customers.id, invoices.customerId))
-    .where(where)
-
-  const [rows, [{ value: total }]] = await Promise.all([rowsPromise, totalPromise])
-
-  return {
-    rows: rows.map((r) => ({
-      ...r,
-      total: Number(r.total),
-      amountPaid: Number(r.amountPaid),
-      balance: Number(r.total) - Number(r.amountPaid),
-    })),
-    total,
-    page,
-    pageSize,
-    pageCount: Math.max(1, Math.ceil(total / pageSize)),
-  }
-}
-
-export async function getInvoice(id: string) {
-  const [row] = await db
-    .select()
-    .from(invoices)
-    .where(and(eq(invoices.id, id), isNull(invoices.deletedAt)))
-    .limit(1)
-  return row ?? null
-}
-
-export async function getInvoiceByBooking(bookingId: string) {
-  const [row] = await db
-    .select()
-    .from(invoices)
-    .where(
-      and(
-        eq(invoices.bookingId, bookingId),
-        isNull(invoices.deletedAt),
-        sql`${invoices.status} <> 'cancelled'`
-      )
-    )
-    .limit(1)
-  return row ?? null
-}
-
-export async function createInvoice(
-  values: typeof invoices.$inferInsert,
-  lines: Omit<typeof invoiceLines.$inferInsert, "invoiceId">[]
-) {
-  const [invoice] = await db.insert(invoices).values(values).returning()
-  if (lines.length > 0) {
-    await db
-      .insert(invoiceLines)
-      .values(lines.map((line) => ({ ...line, invoiceId: invoice.id })))
-  }
-  return invoice
-}
-
-export async function listInvoiceLines(invoiceId: string) {
-  return db
-    .select()
-    .from(invoiceLines)
-    .where(eq(invoiceLines.invoiceId, invoiceId))
-    .orderBy(asc(invoiceLines.sortOrder))
-}
-
-export async function updateInvoice(
-  id: string,
-  values: Partial<typeof invoices.$inferInsert>
-) {
-  const [row] = await db
-    .update(invoices)
-    .set(values)
-    .where(and(eq(invoices.id, id), isNull(invoices.deletedAt)))
-    .returning()
-  return row ?? null
-}
 
 // ------------------------------------------------------------------ receipts
 
@@ -251,31 +108,6 @@ export async function getReceipt(id: string) {
 export async function createReceipt(values: typeof receipts.$inferInsert) {
   const [row] = await db.insert(receipts).values(values).returning()
   return row
-}
-
-/**
- * Applies a receipt to its invoice.
- *
- * `amount_paid = amount_paid + $delta` is computed in SQL rather than read into
- * JS and written back — with the neon-http driver there is no interactive
- * transaction to protect a read-modify-write, so the increment has to be atomic
- * on its own.
- */
-export async function applyReceiptToInvoice(
-  invoiceId: string,
-  delta: number
-): Promise<void> {
-  await db
-    .update(invoices)
-    .set({
-      amountPaid: sql`${invoices.amountPaid} + ${delta}`,
-      status: sql`case
-        when ${invoices.amountPaid} + ${delta} >= ${invoices.total} then 'paid'::invoice_status
-        when ${invoices.amountPaid} + ${delta} > 0 then 'partially_paid'::invoice_status
-        else ${invoices.status}
-      end`,
-    })
-    .where(eq(invoices.id, invoiceId))
 }
 
 export async function voidReceipt(id: string, reason: string) {

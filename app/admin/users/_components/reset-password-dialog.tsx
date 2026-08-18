@@ -30,7 +30,7 @@ export function ResetPasswordDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto]">
         {open && user && (
           <ResetForm
             key={user.id}
@@ -72,7 +72,7 @@ function ResetForm({
         </DialogDescription>
       </DialogHeader>
 
-      <form id="reset-password-form" onSubmit={onSubmit} noValidate>
+      <form id="reset-password-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
         <FieldGroup>
           <TextField
             control={form.control}

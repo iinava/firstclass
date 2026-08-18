@@ -17,8 +17,6 @@ import { bookings, bookingPax } from "@/db/schemas/booking.schema"
 import {
   expenses,
   expenseCategories,
-  invoiceLines,
-  invoices,
   receipts,
   supplierPayments,
 } from "@/db/schemas/accounts.schema"
@@ -42,7 +40,7 @@ import * as leadActionsRaw from "@/app/admin/leads/actions"
 import * as supplierActionsRaw from "@/app/admin/suppliers/actions"
 import * as fleetActionsRaw from "@/app/admin/fleet/actions"
 import * as packageActionsRaw from "@/app/admin/packages/actions"
-import * as bookingActionsRaw from "@/app/admin/bookings/actions"
+import * as bookingActionsRaw from "@/app/admin/trips/actions"
 import * as accountActionsRaw from "@/app/admin/accounts-actions"
 import * as employeeActionsRaw from "@/app/admin/employees/actions"
 import * as reportActionsRaw from "@/app/admin/reports/actions"
@@ -103,7 +101,6 @@ const emptyBin = () => ({
   booking: [] as string[],
   pax: [] as string[],
   cost: [] as string[],
-  invoice: [] as string[],
   receipt: [] as string[],
   supplierPayment: [] as string[],
   expense: [] as string[],
@@ -1150,48 +1147,8 @@ export async function GET(request: Request) {
 
   // ------------------------------------------------------- invoices & money
 
-  await section("invoices", async () => {
-    if (!bookingId) throw new Error("no booking fixture")
-
-    const invoice = must(
-      "createInvoice",
-      await accountActions.createInvoice({
-        bookingId,
-        issueDate: iso(0),
-        dueDate: iso(15),
-        terms: "50% advance, balance before departure.",
-      })
-    )
-
-    bin.invoice.push(invoice.id)
-    expect(
-      "invoice total matches the booking",
-      Number(invoice.total) === 4620000,
-      String(invoice.total)
-    )
-
-    mustFail(
-      "a second invoice for the same trip is refused",
-      await accountActions.createInvoice({ bookingId, issueDate: iso(0) }),
-      "already exists"
-    )
-
-    const lines = must(
-      "fetchInvoiceLines",
-      await accountActions.fetchInvoiceLines({ invoiceId: invoice.id })
-    )
-    expect("invoice has a line", lines.length === 1, `${lines.length}`)
-
-    const list = must(
-      "fetchInvoices filtered by status",
-      await accountActions.fetchInvoices({
-        page: 1,
-        pageSize: 25,
-        sortDir: "desc",
-        status: "sent",
-      } as never)
-    )
-    expect("invoice status filter holds", list.rows.every((r) => r.status === "sent"))
+  await section("money", async () => {
+    if (!bookingId) throw new Error("no trip fixture")
 
     // ------------------------------------------------------------ receipts
 
@@ -1231,23 +1188,9 @@ export async function GET(request: Request) {
     )
     bin.receipt.push(receipt.id)
 
-    const half = must("invoice after part payment", await accountActions.fetchInvoices({
-      page: 1,
-      pageSize: 100,
-      sortDir: "desc",
-    } as never))
-    const invRow = half.rows.find((r) => r.id === invoice.id)
-    expect("part payment flips the invoice to partially_paid", invRow?.status === "partially_paid", invRow?.status)
-
     const ledger = must("ledger after receipt", await bookingActions.fetchBookingLedger({ id: bookingId }))
     expect("received is recorded", ledger.received === 2310000, String(ledger.received))
     expect("balance drops by the receipt", ledger.balance === 2310000, String(ledger.balance))
-
-    mustFail(
-      "an invoice with payments cannot be cancelled",
-      await accountActions.cancelInvoice({ id: invoice.id, reason: "test" }),
-      "void the receipts first"
-    )
 
     mustFail(
       "a booking with money received cannot be deleted",
@@ -1277,15 +1220,6 @@ export async function GET(request: Request) {
       "voiding twice is refused",
       await accountActions.voidReceipt({ id: receipt.id, reason: "again" }),
       "already void"
-    )
-
-    must(
-      "updateInvoiceStatus",
-      await accountActions.updateInvoiceStatus({ id: invoice.id, status: "sent" })
-    )
-    must(
-      "cancelInvoice once payments are void",
-      await accountActions.cancelInvoice({ id: invoice.id, reason: "Test cancellation" })
     )
 
     // -------------------------------------------------- supplier payments
@@ -1667,14 +1601,6 @@ export async function GET(request: Request) {
       denied
     )
     mustFail(
-      "sales cannot raise invoices",
-      await accountActions.createInvoice({
-        bookingId: "00000000-0000-0000-0000-000000000000",
-        issueDate: iso(0),
-      }),
-      denied
-    )
-    mustFail(
       "sales cannot delete customers",
       await customerActions.deleteCustomer({
         id: "00000000-0000-0000-0000-000000000000",
@@ -1786,19 +1712,14 @@ export async function GET(request: Request) {
 
   await purge("audit", async () => {
     const ids = [
-      ...bin.booking, ...bin.customer, ...bin.supplier, ...bin.lead, ...bin.invoice,
+      ...bin.booking, ...bin.customer, ...bin.supplier, ...bin.lead,
       ...bin.receipt, ...bin.expense, ...bin.employee, ...bin.user, ...bin.itinerary,
       ...bin.vehicle, ...bin.driver, ...bin.cost, ...bin.supplierPayment,
     ]
     if (ids.length) await db.delete(auditLogs).where(inArray(auditLogs.entityId, ids))
   })
-  await purge("invoiceLines", async () => {
-    if (bin.invoice.length)
-      await db.delete(invoiceLines).where(inArray(invoiceLines.invoiceId, bin.invoice))
-  })
   await purge("receipts", del(receipts, bin.receipt))
   await purge("supplierPayments", del(supplierPayments, bin.supplierPayment))
-  await purge("invoices", del(invoices, bin.invoice))
   await purge("expenses", del(expenses, bin.expense))
   await purge("expenseCategories", del(expenseCategories, bin.category))
   await purge("vehicleAssignments", del(vehicleAssignments, bin.assignment))

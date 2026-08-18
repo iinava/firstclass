@@ -63,8 +63,8 @@ export function AttendanceView() {
         header: "Employee",
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate font-medium">{row.employeeName}</p>
-            <p className="truncate font-mono text-xs text-muted-foreground">
+            <p className="truncate text-[15px] font-medium">{row.employeeName}</p>
+            <p className="truncate text-[13px] text-muted-foreground">
               {row.empCode}
             </p>
           </div>
@@ -85,7 +85,7 @@ export function AttendanceView() {
             <p className="whitespace-nowrap text-sm">
               {formatDate(row.fromDate)} – {formatDate(row.toDate)}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[13px] text-muted-foreground">
               {row.days} day{row.days === 1 ? "" : "s"}
             </p>
           </div>
@@ -244,8 +244,8 @@ function AttendanceRegister({
         header: "Employee",
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate font-medium">{row.name}</p>
-            <p className="truncate font-mono text-xs text-muted-foreground">
+            <p className="truncate text-[15px] font-medium">{row.name}</p>
+            <p className="truncate text-[13px] text-muted-foreground">
               {row.empCode}
               {row.designation ? ` · ${row.designation}` : ""}
             </p>

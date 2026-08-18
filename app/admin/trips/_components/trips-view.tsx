@@ -1,9 +1,9 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { ExternalLinkIcon, PlusIcon, SearchIcon } from "lucide-react"
+import { ChevronRightIcon, PlusIcon, SearchIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   InputGroup,
@@ -18,14 +18,13 @@ import { useDebouncedValue, useListParams } from "@/hooks/use-list-params"
 import { formatDate, formatPax } from "@/lib/format"
 import { formatMoneyShort } from "@/lib/money"
 import { qk } from "@/lib/query-keys"
-import { cn } from "@/lib/utils"
 import {
   BOOKING_STATUSES,
   BOOKING_STATUS_LABELS,
 } from "@/validations/booking.validation"
 import type { BookingListRow } from "@/lib/services/booking.service"
 import { fetchBookings } from "../actions"
-import { BookingFormDialog } from "./booking-form-dialog"
+import { TripFormDialog } from "./trip-form-dialog"
 
 const PAGE_SIZE = 25
 
@@ -34,7 +33,9 @@ const STATUS_FILTER_OPTIONS = [
   ...optionsFrom(BOOKING_STATUSES, BOOKING_STATUS_LABELS),
 ]
 
-export function BookingsView() {
+export function TripsView() {
+  const router = useRouter()
+
   // "startDate" must match the default in the page's server prefetch.
   const { params, setSearch, setFilter, setPage, setSort } = useListParams<{
     status: string
@@ -68,6 +69,12 @@ export function BookingsView() {
 
   const [formOpen, setFormOpen] = React.useState(false)
 
+  /**
+   * Four columns, not seven. Value / Balance / Received / Profit were four
+   * separate money columns saying one thing — "where is this trip's money" —
+   * and profit is an internal figure nobody scans a list for. They collapse
+   * into one plain-language line, with the detail page carrying the rest.
+   */
   const columns = React.useMemo<DataTableColumn<BookingListRow>[]>(
     () => [
       {
@@ -76,68 +83,62 @@ export function BookingsView() {
         sortable: true,
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate font-medium">{row.title}</p>
-            <p className="truncate font-mono text-xs text-muted-foreground">
-              {row.code} · {row.customerName}
+            <p className="truncate text-[15px] font-medium">{row.title}</p>
+            <p className="truncate text-[13px] text-muted-foreground">
+              {row.customerName}
             </p>
           </div>
         ),
       },
       {
         key: "startDate",
-        header: "Dates",
+        header: "Travelling",
         sortable: true,
         cell: (row) => (
           <div className="min-w-0">
-            <p className="whitespace-nowrap">{formatDate(row.startDate)}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="whitespace-nowrap text-[15px]">
+              {formatDate(row.startDate)}
+            </p>
+            <p className="text-[13px] text-muted-foreground">
               {formatPax(row.adults, row.children, row.infants)}
             </p>
           </div>
         ),
       },
       {
-        key: "grandTotal",
-        header: "Value",
-        sortable: true,
-        hideOnMobile: true,
-        cell: (row) => (
-          <span className="tabular-nums">{formatMoneyShort(row.grandTotal)}</span>
-        ),
-      },
-      {
         key: "balance",
-        header: "Balance",
+        header: "Payment",
         hideOnMobile: true,
-        cell: (row) => (
-          <div className="tabular-nums">
-            <p
-              className={cn(
-                row.balance > 0 ? "text-amber-500" : "text-emerald-500"
-              )}
-            >
-              {row.balance > 0 ? formatMoneyShort(row.balance) : "Settled"}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {formatMoneyShort(row.received)} received
-            </p>
-          </div>
-        ),
-      },
-      {
-        key: "profit",
-        header: "Profit",
-        hideOnMobile: true,
-        cell: (row) => (
-          <span
-            className={cn(
-              "tabular-nums",
-              row.profit >= 0 ? "text-emerald-500" : "text-red-500"
-            )}
-          >
-            {formatMoneyShort(row.profit)}
-          </span>
-        ),
+        cell: (row) =>
+          // Nothing is "to collect" on a trip that was called off.
+          row.status === "cancelled" ? (
+            <div className="min-w-0">
+              <p className="whitespace-nowrap text-[15px] text-muted-foreground">
+                {row.received > 0
+                  ? `${formatMoneyShort(row.received)} taken`
+                  : "Nothing taken"}
+              </p>
+              <p className="text-[13px] text-muted-foreground">Trip cancelled</p>
+            </div>
+          ) : row.balance > 0 ? (
+            <div className="min-w-0">
+              <p className="whitespace-nowrap text-[15px] text-amber-600 dark:text-amber-400">
+                {formatMoneyShort(row.balance)} to collect
+              </p>
+              <p className="text-[13px] text-muted-foreground">
+                of {formatMoneyShort(row.grandTotal)}
+              </p>
+            </div>
+          ) : (
+            <div className="min-w-0">
+              <p className="whitespace-nowrap text-[15px] text-emerald-600 dark:text-emerald-400">
+                Fully paid
+              </p>
+              <p className="text-[13px] text-muted-foreground">
+                {formatMoneyShort(row.grandTotal)}
+              </p>
+            </div>
+          ),
       },
       {
         key: "status",
@@ -149,31 +150,22 @@ export function BookingsView() {
         key: "actions",
         header: <span className="sr-only">Open</span>,
         className: "w-10",
-        cell: (row) => (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            render={<Link href={`/admin/bookings/${row.id}`} />}
-            aria-label={`Open ${row.code}`}
-          >
-            <ExternalLinkIcon className="size-4" />
-          </Button>
-        ),
+        cell: () => <ChevronRightIcon className="size-4 text-muted-foreground" />,
       },
     ],
     []
   )
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
           <InputGroup className="w-full sm:max-w-xs">
             <InputGroupInput
-              placeholder="Search code, trip, customer…"
+              placeholder="Search trip or customer…"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
-              aria-label="Search bookings"
+              aria-label="Search trips"
             />
             <InputGroupAddon>
               <SearchIcon className="size-4 text-muted-foreground" />
@@ -191,7 +183,7 @@ export function BookingsView() {
 
         <Button onClick={() => setFormOpen(true)}>
           <PlusIcon data-icon="inline-start" />
-          New booking
+          New trip
         </Button>
       </div>
 
@@ -199,9 +191,11 @@ export function BookingsView() {
         columns={columns}
         rows={data?.rows}
         getRowId={(row) => row.id}
+        // The whole row is the target now that the open-icon column is gone.
+        onRowClick={(row) => router.push(`/admin/trips/${row.id}`)}
         isLoading={isLoading || isFetching}
-        emptyTitle={params.search ? "No matching bookings" : "No bookings yet"}
-        emptyDescription="Confirm a trip from an enquiry, or create one directly."
+        emptyTitle={params.search ? "No matching trips" : "No trips yet"}
+        emptyDescription="Convert an enquiry, or create a trip directly."
         pagination={
           data
             ? {
@@ -216,7 +210,7 @@ export function BookingsView() {
         sort={{ sortBy: params.sortBy, sortDir: params.sortDir, onSortChange: setSort }}
       />
 
-      <BookingFormDialog open={formOpen} onOpenChange={setFormOpen} />
+      <TripFormDialog open={formOpen} onOpenChange={setFormOpen} />
     </div>
   )
 }

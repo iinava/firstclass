@@ -60,8 +60,6 @@ export const qk = {
   },
   accounts: {
     all: ["accounts"] as const,
-    invoices: (params: ListParams = {}) => ["accounts", "invoices", params] as const,
-    invoice: (id: string) => ["accounts", "invoice", id] as const,
     receipts: (params: ListParams = {}) => ["accounts", "receipts", params] as const,
     expenses: (params: ListParams = {}) => ["accounts", "expenses", params] as const,
     outstanding: (params: ListParams = {}) =>

@@ -210,12 +210,12 @@ export function ReportsView() {
         cell: (row) => (
           <div className="min-w-0">
             <Link
-              href={`/admin/bookings/${row.id}`}
+              href={`/admin/trips/${row.id}`}
               className="truncate font-medium hover:underline"
             >
               {row.title}
             </Link>
-            <p className="truncate font-mono text-xs text-muted-foreground">
+            <p className="truncate text-[13px] text-muted-foreground">
               {row.code} · {row.customerName}
             </p>
           </div>
@@ -240,6 +240,7 @@ export function ReportsView() {
       },
       {
         key: "cost",
+        align: "right",
         header: "Cost",
         hideOnMobile: true,
         cell: (row) => (
@@ -250,13 +251,14 @@ export function ReportsView() {
       },
       {
         key: "profit",
+        align: "right",
         header: "Profit",
         cell: (row) => (
           <div className="tabular-nums">
             <p className={row.profit >= 0 ? "text-emerald-500" : "text-red-500"}>
               {formatMoneyShort(row.profit)}
             </p>
-            <p className="text-xs text-muted-foreground">{row.margin.toFixed(1)}%</p>
+            <p className="text-[13px] text-muted-foreground">{row.margin.toFixed(1)}%</p>
           </div>
         ),
       },
@@ -277,8 +279,8 @@ export function ReportsView() {
         header: "Supplier",
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate font-medium">{row.name}</p>
-            <p className="truncate text-xs text-muted-foreground">
+            <p className="truncate text-[15px] font-medium">{row.name}</p>
+            <p className="truncate text-[13px] text-muted-foreground">
               {humanize(row.type)}
             </p>
           </div>
@@ -323,7 +325,7 @@ export function ReportsView() {
         cell: (row) => (
           <div className="min-w-0">
             <p className="truncate font-mono font-medium">{row.regNumber}</p>
-            <p className="truncate text-xs text-muted-foreground">
+            <p className="truncate text-[13px] text-muted-foreground">
               {humanize(row.type)} · {humanize(row.ownership)}
             </p>
           </div>
@@ -364,6 +366,7 @@ export function ReportsView() {
       },
       {
         key: "total",
+        align: "right",
         header: "Enquiries",
         cell: (row) => <span className="tabular-nums">{row.total}</span>,
       },
@@ -373,7 +376,7 @@ export function ReportsView() {
         cell: (row) => (
           <div className="tabular-nums">
             <p className="text-emerald-500">{row.won}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[13px] text-muted-foreground">
               {row.conversionRate}% conversion
             </p>
           </div>
@@ -385,7 +388,7 @@ export function ReportsView() {
         cell: (row) => (
           <div className="tabular-nums">
             <p>{formatMoneyShort(row.revenue)}</p>
-            <p className="text-xs text-muted-foreground">{row.trips} trips</p>
+            <p className="text-[13px] text-muted-foreground">{row.trips} trips</p>
           </div>
         ),
       },
@@ -459,7 +462,7 @@ export function ReportsView() {
       <section className="rounded-xl border bg-card p-5">
         <header className="mb-4">
           <h2 className="text-sm font-medium">Month by month</h2>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[13px] text-muted-foreground">
             Revenue against what the trips cost to run.
           </p>
         </header>
@@ -508,7 +511,7 @@ export function ReportsView() {
             getRowId={(row) => row.id}
             isLoading={tripsLoading}
             emptyTitle="No trips in this window"
-            emptyDescription="Adjust the date range, or confirm a booking to see it here."
+            emptyDescription="Adjust the date range, or create a trip to see it here."
           />
         </TabsContent>
 

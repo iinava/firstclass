@@ -49,7 +49,7 @@ export function ReceiptDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto]">
         {open && (
           <ReceiptForm
             bookingId={bookingId}
@@ -80,8 +80,9 @@ function ReceiptForm({
   const defaultValues = React.useMemo<CreateReceiptValues>(
     () => ({
       bookingId,
-      invoiceId: null,
-      amount: "",
+      // Settling the balance in full is the common case, so it is pre-filled
+      // rather than hidden behind a helper button.
+      amount: String(toRupees(balance)),
       mode: "upi",
       reference: "",
       receivedAt: new Date().toISOString().slice(0, 10),
@@ -89,7 +90,7 @@ function ReceiptForm({
       isAdvance: isFirstPayment,
       notes: "",
     }),
-    [bookingId, isFirstPayment]
+    [bookingId, balance, isFirstPayment]
   )
 
   const { form, onSubmit, isPending } = useCrudForm<CreateReceiptValues>({
@@ -111,7 +112,7 @@ function ReceiptForm({
         </DialogDescription>
       </DialogHeader>
 
-      <form id="receipt-form" onSubmit={onSubmit} noValidate>
+      <form id="receipt-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
         <FieldGroup>
           <div className="grid gap-4 sm:grid-cols-2">
             <MoneyField
@@ -134,16 +135,6 @@ function ReceiptForm({
               placeholder="UTR / cheque no."
             />
           </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-fit"
-            onClick={() => form.setValue("amount", String(toRupees(balance)) as never)}
-          >
-            Fill full balance
-          </Button>
 
           <SwitchField
             control={form.control}

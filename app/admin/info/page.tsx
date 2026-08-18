@@ -6,7 +6,6 @@ import {
   CalendarCheckIcon,
   ChartNoAxesCombinedIcon,
   ExternalLinkIcon,
-  FileTextIcon,
   LayoutDashboardIcon,
   MapIcon,
   PlayCircleIcon,
@@ -69,7 +68,7 @@ const GROUPS: Group[] = [
         purpose:
           "The morning summary — what is booked, what is owed, and what needs chasing today.",
         does: [
-          "Shows enquiry, booking and revenue counts for the current period",
+          "Shows enquiry, trip and revenue counts for the current period",
           "Surfaces today's and overdue follow-ups so nothing goes cold",
           "Highlights outstanding balances across active trips",
         ],
@@ -95,7 +94,7 @@ const GROUPS: Group[] = [
           "Every stage change is logged on the lead's activity trail",
         ],
         feeds:
-          "Converting a lead into a booking marks it Won automatically. Sales staff see only their own leads; managers see everything.",
+          "Converting an enquiry into a trip marks it Won automatically. Sales staff see only their own enquiries; managers see everything.",
       },
       {
         title: "Follow-ups",
@@ -123,7 +122,7 @@ const GROUPS: Group[] = [
           "See a customer's trips and payment history in one place",
         ],
         feeds:
-          "A customer with a booking cannot be deleted. Referenced by Leads, Bookings and Invoices.",
+          "A customer with a trip cannot be deleted. Referenced by Enquiries and Trips.",
       },
       {
         title: "Packages",
@@ -138,7 +137,7 @@ const GROUPS: Group[] = [
           "Clone a package into a custom quote for a specific enquiry instead of retyping it",
         ],
         feeds:
-          "An accepted quote becomes a Booking. Sharing can be switched off, and the link can be regenerated to invalidate the old one.",
+          "An accepted quote becomes a Trip. Sharing can be switched off, and the link can be regenerated to invalidate the old one.",
       },
     ],
   },
@@ -148,13 +147,13 @@ const GROUPS: Group[] = [
       "Delivering the trip that was sold — the money going out, and the vehicles going with it.",
     modules: [
       {
-        title: "Bookings",
-        href: "/admin/bookings",
+        title: "Trips",
+        href: "/admin/trips",
         icon: CalendarCheckIcon,
         purpose:
-          "A confirmed trip. The centre of the system — costing, vehicles, invoices and payments all hang off it.",
+          "A confirmed trip. The centre of the system — costing, vehicles and payments all hang off it.",
         does: [
-          "Created from an accepted quote or directly from a phone call",
+          "Converted from an enquiry in one click, or created directly from a phone call",
           "Prices per head or as a fixed amount; discount is applied before GST, and the totals are stored so nothing recalculates behind your back",
           "Track status: Confirmed → In progress → Completed",
           "Record the passenger list, and add trip costs line by line — hotel, transport, guide, permits and so on, each optionally tied to a supplier",
@@ -186,7 +185,7 @@ const GROUPS: Group[] = [
           "Register vehicles with type, seating, ownership and per-km or per-day rates",
           "Track insurance, fitness and PUC expiry dates",
           "Keep driver records with licence details and daily allowance",
-          "Assign a vehicle and driver to a booking for a date range",
+          "Assign a vehicle and driver to a trip for a date range",
         ],
         feeds:
           "The same vehicle cannot be assigned to overlapping dates — the system refuses the clash. An assigned vehicle cannot be deleted.",
@@ -198,20 +197,6 @@ const GROUPS: Group[] = [
     blurb:
       "Money in, money out, and what it all added up to. Entries here are reversed rather than edited, so the ledger stays auditable.",
     modules: [
-      {
-        title: "Invoices",
-        href: "/admin/invoices",
-        icon: FileTextIcon,
-        purpose: "The customer bill, raised against a booking.",
-        does: [
-          "Generated from the booking's stored totals, so the invoice can never disagree with the trip it bills",
-          "Numbered per financial year, automatically",
-          "Status moves Draft → Sent → Partially paid → Paid as receipts come in",
-          "One invoice per trip; a second is refused",
-        ],
-        feeds:
-          "An invoice with payments against it cannot be cancelled — void the receipts first.",
-      },
       {
         title: "Payments",
         href: "/admin/payments",
@@ -328,7 +313,7 @@ const ROLES: { name: string; sees: string }[] = [
   {
     name: "Manager",
     sees:
-      "All of Sales, Operations and Accounts, plus the team modules. Can assign leads, cancel bookings and publish itineraries.",
+      "All of Sales, Operations and Accounts, plus the team modules. Can assign enquiries, cancel trips and publish itineraries.",
   },
   {
     name: "Accounts",
@@ -338,7 +323,7 @@ const ROLES: { name: string; sees: string }[] = [
   {
     name: "Sales",
     sees:
-      "Leads, customers, itineraries and bookings — scoped to their own enquiries. No money screens.",
+      "Enquiries, customers, itineraries and trips — scoped to their own enquiries. No money screens.",
   },
   {
     name: "Operations",
@@ -352,8 +337,8 @@ const FLOW = [
   "An enquiry comes in and is logged in Leads — the customer record is created or matched by phone at the same time.",
   "Follow-ups keep it moving until the customer decides.",
   "A quote is built in Packages, shared as a link, and accepted.",
-  "It becomes a Booking. Trip costs and a vehicle are added.",
-  "An Invoice is raised from the booking, and Payments are recorded against it.",
+  "It becomes a Trip. Trip costs and a vehicle are added.",
+  "Payments are recorded against the trip; Print invoice hands the customer a PDF at any point.",
   "Expenses are logged along the way, and Reports show what the trip actually made.",
 ]
 
@@ -478,11 +463,11 @@ export default function InfoPage() {
             },
             {
               title: "GST",
-              body: "Tax is calculated on the amount after discount, never before. The rate is set per booking and defaults from Settings.",
+              body: "Tax is calculated on the amount after discount, never before. The rate is set per trip.",
             },
             {
               title: "Document numbers",
-              body: "Bookings, invoices, receipts and expenses are numbered automatically, per financial year. You never type one in.",
+              body: "Trips, receipts and expenses are numbered automatically, per financial year. You never type one in.",
             },
             {
               title: "Deleting",

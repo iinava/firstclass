@@ -77,7 +77,7 @@ export function ScheduleFollowupDialog({
 
   return (
     <Dialog open={open} onOpenChange={isPending ? undefined : onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto]">
         <DialogHeader>
           <DialogTitle>Schedule follow-up</DialogTitle>
           <DialogDescription>
@@ -85,7 +85,7 @@ export function ScheduleFollowupDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form id="schedule-followup-form" onSubmit={onSubmit} noValidate>
+        <form id="schedule-followup-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
           <FieldGroup>
             <Controller
               name="dueAt"

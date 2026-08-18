@@ -25,7 +25,7 @@ export default async function AdminDashboard() {
   const session = await getSession()
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
+    <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
       <PageHeader
         title={`Welcome back${session?.username ? `, ${session.username}` : ""}`}
         description="Where the business stands today."
@@ -50,31 +50,37 @@ async function DashboardContent() {
   const { leads, bookings, money, followups, upcomingTrips, recentLeads } = summary
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Each tile answers a question someone actually asks in the morning,
+            so the sub-line is a sentence rather than a second statistic. */}
         <StatCard
-          label="Open enquiries"
+          label="Enquiries open"
           value={formatNumber(leads.open)}
-          sub={`${leads.newThisMonth} new this month`}
+          sub={
+            leads.newThisMonth > 0
+              ? `${leads.newThisMonth} came in this month`
+              : "None new this month"
+          }
           icon={BriefcaseIcon}
         />
         <StatCard
-          label="Follow-ups due"
+          label="Calls to make"
           value={formatNumber(followups.today + followups.overdue)}
           sub={
             followups.overdue > 0
-              ? `${followups.overdue} overdue`
-              : "Nothing overdue"
+              ? `${followups.overdue} already late`
+              : "All on schedule"
           }
           icon={followups.overdue > 0 ? AlertCircleIcon : CalendarCheckIcon}
           tone={followups.overdue > 0 ? "negative" : "default"}
         />
         <StatCard
-          label="Active trips"
+          label="Trips running"
           value={formatNumber(bookings.active)}
           sub={
             bookings.travellingNow > 0
-              ? `${bookings.travellingNow} travelling now`
+              ? `${bookings.travellingNow} travelling right now`
               : `${bookings.thisMonth} booked this month`
           }
           icon={PlaneTakeoffIcon}
@@ -82,7 +88,7 @@ async function DashboardContent() {
         <StatCard
           label="Booked this month"
           value={formatMoneyCompact(money.bookedValue)}
-          sub={`${formatMoneyCompact(money.activeValue)} on active trips`}
+          sub={`${formatMoneyCompact(money.activeValue)} still on the road`}
           icon={IndianRupeeIcon}
           tone="positive"
         />
@@ -91,15 +97,17 @@ async function DashboardContent() {
       {showTrend && <RevenueTrendCard data={trend} />}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border bg-card">
-          <header className="flex items-center justify-between border-b px-5 py-4">
-            <div>
-              <h2 className="text-sm font-medium">Upcoming departures</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Trips starting soon
-              </p>
-            </div>
-            <Button variant="ghost" size="sm" render={<Link href="/admin/bookings" />}>
+        <section className="overflow-hidden rounded-xl border bg-card">
+          <header className="flex h-12 items-center justify-between gap-2 border-b pl-5 pr-2">
+            <h2 className="text-sm font-medium">
+              Upcoming departures
+            </h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              render={<Link href="/admin/trips" />}
+            >
               View all
             </Button>
           </header>
@@ -113,11 +121,11 @@ async function DashboardContent() {
               {upcomingTrips.map((trip) => (
                 <li
                   key={trip.id}
-                  className="flex items-center justify-between gap-3 px-5 py-3.5"
+                  className="flex h-[4.5rem] items-center justify-between gap-3 px-5"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{trip.title}</p>
-                    <p className="truncate text-xs text-muted-foreground">
+                    <p className="truncate text-[15px] font-medium">{trip.title}</p>
+                    <p className="truncate text-[13px] text-muted-foreground">
                       {trip.customerName} · {formatDate(trip.startDate)}
                     </p>
                   </div>
@@ -128,35 +136,37 @@ async function DashboardContent() {
           )}
         </section>
 
-        <section className="rounded-xl border bg-card">
-          <header className="flex items-center justify-between border-b px-5 py-4">
-            <div>
-              <h2 className="text-sm font-medium">Latest enquiries</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Most recent leads in the pipeline
-              </p>
-            </div>
-            <Button variant="ghost" size="sm" render={<Link href="/admin/leads" />}>
+        <section className="overflow-hidden rounded-xl border bg-card">
+          <header className="flex h-12 items-center justify-between gap-2 border-b pl-5 pr-2">
+            <h2 className="text-sm font-medium">
+              Latest enquiries
+            </h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              render={<Link href="/admin/leads" />}
+            >
               View all
             </Button>
           </header>
 
           {recentLeads.length === 0 ? (
             <p className="px-5 py-10 text-center text-sm text-muted-foreground">
-              No enquiries yet — log the next call from the Leads page.
+              No enquiries yet — log the next call from the Enquiries page.
             </p>
           ) : (
             <ul className="divide-y">
               {recentLeads.map((lead) => (
                 <li
                   key={lead.id}
-                  className="flex items-center justify-between gap-3 px-5 py-3.5"
+                  className="flex h-[4.5rem] items-center justify-between gap-3 px-5"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
+                    <p className="truncate text-[15px] font-medium">
                       {lead.customerName}
                     </p>
-                    <p className="truncate text-xs text-muted-foreground">
+                    <p className="truncate text-[13px] text-muted-foreground">
                       {lead.destination ?? "Destination TBD"} ·{" "}
                       {formatRelativeDay(lead.createdAt)}
                     </p>
@@ -174,7 +184,7 @@ async function DashboardContent() {
 
 function DashboardSkeleton() {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <StatCardSkeleton key={index} />

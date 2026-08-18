@@ -38,23 +38,28 @@ export function RevenueTrendCard({ data }: { data: TrendPoint[] }) {
   )
 
   return (
-    <section className="rounded-xl border bg-card p-5">
-      <header className="mb-4">
-        <h2 className="text-sm font-medium">Revenue, cost and profit</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Trips by the month they depart.
+    <section className="overflow-hidden rounded-xl border bg-card">
+      {/* Same ruled, uppercase header as every other panel on the page. */}
+      <header className="flex h-12 items-center justify-between gap-2 border-b px-5">
+        <h2 className="text-sm font-medium">
+          Revenue, cost and profit
+        </h2>
+        <p className="hidden text-xs text-muted-foreground sm:block">
+          By month of departure
         </p>
       </header>
-      <TrendLineChart
-        data={points}
-        series={[
-          { key: "revenue", label: "Revenue", slot: 0 },
-          { key: "cost", label: "Cost", slot: 1 },
-          { key: "profit", label: "Profit", slot: 2 },
-        ]}
-        height={240}
-        emptyMessage="Two months of trips are needed before a trend means anything."
-      />
+      <div className="p-4">
+        <TrendLineChart
+          data={points}
+          series={[
+            { key: "revenue", label: "Revenue", slot: 0 },
+            { key: "cost", label: "Cost", slot: 1 },
+            { key: "profit", label: "Profit", slot: 2 },
+          ]}
+          height={200}
+          emptyMessage="Two months of trips are needed before a trend means anything."
+        />
+      </div>
     </section>
   )
 }

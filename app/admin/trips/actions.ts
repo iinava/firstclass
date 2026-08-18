@@ -159,7 +159,7 @@ export const createBooking = defineAction({
       session,
     })
 
-    revalidatePath("/admin/bookings")
+    revalidatePath("/admin/trips")
     revalidatePath("/admin/leads")
     return booking
   },
@@ -203,8 +203,8 @@ export const updateBooking = defineAction({
       session,
     })
 
-    revalidatePath("/admin/bookings")
-    revalidatePath(`/admin/bookings/${id}`)
+    revalidatePath("/admin/trips")
+    revalidatePath(`/admin/trips/${id}`)
     return booking
   },
 })
@@ -237,8 +237,8 @@ export const updateBookingStatus = defineAction({
       session,
     })
 
-    revalidatePath("/admin/bookings")
-    revalidatePath(`/admin/bookings/${id}`)
+    revalidatePath("/admin/trips")
+    revalidatePath(`/admin/trips/${id}`)
     return booking
   },
 })
@@ -269,8 +269,8 @@ export const cancelBooking = defineAction({
       session,
     })
 
-    revalidatePath("/admin/bookings")
-    revalidatePath(`/admin/bookings/${id}`)
+    revalidatePath("/admin/trips")
+    revalidatePath(`/admin/trips/${id}`)
     return booking
   },
 })
@@ -298,7 +298,7 @@ export const deleteBooking = defineAction({
       summary: `Deleted booking ${before.code}`,
       session,
     })
-    revalidatePath("/admin/bookings")
+    revalidatePath("/admin/trips")
     return { id }
   },
 })
@@ -327,7 +327,7 @@ export const createTripCost = defineAction({
       session,
     })
 
-    revalidatePath(`/admin/bookings/${input.bookingId}`)
+    revalidatePath(`/admin/trips/${input.bookingId}`)
     return item
   },
 })
@@ -364,7 +364,7 @@ export const updateTripCost = defineAction({
       session,
     })
 
-    revalidatePath(`/admin/bookings/${input.bookingId}`)
+    revalidatePath(`/admin/trips/${input.bookingId}`)
     return item
   },
 })
@@ -390,7 +390,7 @@ export const deleteTripCost = defineAction({
       summary: `Removed cost line: ${before.description}`,
       session,
     })
-    revalidatePath(`/admin/bookings/${before.bookingId}`)
+    revalidatePath(`/admin/trips/${before.bookingId}`)
     return { id }
   },
 })
@@ -406,7 +406,7 @@ export const addPax = defineAction({
       ...input,
       age: input.age ?? null,
     })
-    revalidatePath(`/admin/bookings/${input.bookingId}`)
+    revalidatePath(`/admin/trips/${input.bookingId}`)
     return pax
   },
 })

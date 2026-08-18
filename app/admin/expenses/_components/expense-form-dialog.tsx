@@ -33,7 +33,7 @@ import {
   type ExpenseFormValues,
 } from "@/validations/accounts.validation"
 import type { ExpenseListRow } from "@/lib/services/accounts.service"
-import { fetchBookingOptions } from "@/app/admin/bookings/actions"
+import { fetchBookingOptions } from "@/app/admin/trips/actions"
 import { fetchVehicleOptions } from "@/app/admin/fleet/actions"
 import {
   createExpense,
@@ -54,7 +54,7 @@ export function ExpenseFormDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto]">
         {open && (
           <ExpenseForm
             key={expense?.id ?? "new"}
@@ -134,7 +134,7 @@ function ExpenseForm({
         </DialogDescription>
       </DialogHeader>
 
-      <form id="expense-form" onSubmit={onSubmit} noValidate>
+      <form id="expense-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
         <FieldGroup>
           <TextField
             control={form.control}

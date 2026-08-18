@@ -19,7 +19,7 @@ export default function PaymentsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
+    <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
       <PageHeader
         title="Payments"
         description="Money received from customers, and what's still outstanding."

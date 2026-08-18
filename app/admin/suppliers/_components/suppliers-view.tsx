@@ -105,13 +105,13 @@ export function SuppliersView() {
         sortable: true,
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate font-medium">
+            <p className="truncate text-[15px] font-medium">
               {row.name}
               {!row.isActive && (
                 <span className="ml-2 text-xs text-muted-foreground">(inactive)</span>
               )}
             </p>
-            <p className="truncate text-xs text-muted-foreground">
+            <p className="truncate text-[13px] text-muted-foreground">
               {row.contactPerson ?? row.city ?? "—"}
             </p>
           </div>
@@ -212,7 +212,7 @@ export function SuppliersView() {
   )
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
           <InputGroup className="w-full sm:max-w-xs">

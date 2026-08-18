@@ -43,7 +43,7 @@ export function AssignVehicleDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto]">
         {open && (
           <AssignForm
             bookingId={bookingId}
@@ -115,7 +115,7 @@ function AssignForm({
         </DialogDescription>
       </DialogHeader>
 
-      <form id="assign-vehicle-form" onSubmit={onSubmit} noValidate>
+      <form id="assign-vehicle-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
         <FieldGroup>
           <SelectField
             control={form.control}

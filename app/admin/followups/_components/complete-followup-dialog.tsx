@@ -52,7 +52,7 @@ export function CompleteFollowupDialog({
 }: CompleteFollowupDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto]">
         {/* Mounted only while open and keyed per follow-up, so form state and
             the "schedule next" toggle reset naturally instead of via effects. */}
         {open && followup && (
@@ -130,7 +130,7 @@ function CompleteFollowupForm({
         </DialogDescription>
       </DialogHeader>
 
-        <form id="complete-followup-form" onSubmit={onSubmit} noValidate>
+        <form id="complete-followup-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
           <FieldGroup>
             <Controller
               name="outcome"
