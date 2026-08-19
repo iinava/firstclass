@@ -65,6 +65,15 @@ export const PERMISSIONS = [
   "hrms:view",
   "hrms:manage",
   "attendance:mark",
+  /**
+   * Decide a leave request. Deliberately narrower than `hrms:manage`: a manager
+   * records leave, but only Admin and Super Admin approve or reject it.
+   */
+  "leave:approve",
+
+  "payroll:view",
+  /** Post a month's salaries to expenses. Irreversible, so Admin and above. */
+  "payroll:run",
 
   "report:view",
   "report:financial",
@@ -157,6 +166,9 @@ const MANAGER: Permission[] = [
     "hrms:view",
     "hrms:manage",
     "attendance:mark",
+    // A manager prepares the month and checks the figures; posting it is not
+    // theirs to do.
+    "payroll:view",
     "audit:view",
   ]),
 ]

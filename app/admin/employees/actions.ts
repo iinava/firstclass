@@ -194,11 +194,19 @@ export const fetchLeaves = defineAction({
   handler: async (params) => service.listLeaves(params),
 })
 
+/**
+ * Records a leave request on an employee's behalf — staff tell their manager,
+ * the manager enters it here. `days` is derived from the date range rather than
+ * typed, so the register and the leave list can never disagree about the length.
+ */
 export const requestLeave = defineAction({
   name: "requestLeave",
-  permission: "hrms:view",
+  permission: "hrms:manage",
   schema: LeaveRequestSchema,
-  handler: async (input) => {
+  handler: async (input, { session }) => {
+    const employee = await service.getEmployee(input.employeeId)
+    if (!employee) throw new ActionFailure("Employee not found")
+
     const days =
       differenceInCalendarDays(parseISO(input.toDate), parseISO(input.fromDate)) + 1
 
@@ -206,6 +214,15 @@ export const requestLeave = defineAction({
       ...input,
       days: Math.max(1, days),
     })
+
+    await recordAudit({
+      entity: "leave_requests",
+      entityId: leave.id,
+      action: "create",
+      summary: `Leave recorded for ${employee.name}`,
+      session,
+    })
+
     revalidatePath("/admin/attendance")
     return leave
   },
@@ -213,7 +230,9 @@ export const requestLeave = defineAction({
 
 export const decideLeave = defineAction({
   name: "decideLeave",
-  permission: "hrms:manage",
+  // Narrower than hrms:manage on purpose — a manager records leave, but only
+  // Admin and Super Admin approve or reject it.
+  permission: "leave:approve",
   schema: DecideLeaveSchema,
   handler: async ({ id, status, decisionNote }, { session }) => {
     const leave = await service.decideLeave(id, {

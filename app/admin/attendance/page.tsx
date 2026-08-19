@@ -6,6 +6,7 @@ import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getQueryClient } from "@/lib/query-client"
 import { qk } from "@/lib/query-keys"
 import { requirePermission } from "@/lib/action"
+import { hasPermission } from "@/lib/rbac"
 import { getAttendanceForDate, listLeaves } from "@/lib/services/hrms.service"
 import { AttendanceView } from "./_components/attendance-view"
 
@@ -34,7 +35,7 @@ async function AttendanceLoader({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  await requirePermission("hrms:view")
+  const session = await requirePermission("hrms:view")
   const raw = await searchParams
   const date =
     typeof raw.date === "string" && raw.date
@@ -48,15 +49,18 @@ async function AttendanceLoader({
       queryFn: () => getAttendanceForDate(date),
     }),
     queryClient.prefetchQuery({
-      queryKey: qk.hrms.leaves({ status: "pending" }),
+      queryKey: qk.hrms.leaves({ page: 1, pageSize: 50 }),
       queryFn: () =>
-        listLeaves({ page: 1, pageSize: 25, sortDir: "desc", status: "pending" } as never),
+        listLeaves({ page: 1, pageSize: 50, sortDir: "desc" } as never),
     }),
   ])
 
   return (
     <Hydrate client={queryClient}>
-      <AttendanceView />
+      <AttendanceView
+        canRecordLeave={hasPermission(session.role, "hrms:manage")}
+        canApproveLeave={hasPermission(session.role, "leave:approve")}
+      />
     </Hydrate>
   )
 }

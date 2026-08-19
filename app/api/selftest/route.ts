@@ -10,7 +10,7 @@
  * Development only, and every row it creates is removed on the way out.
  */
 import { NextResponse } from "next/server"
-import { inArray } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 import { db } from "@/db/drizzle"
 import { auditLogs } from "@/db/schemas/system.schema"
 import { bookings, bookingPax } from "@/db/schemas/booking.schema"
@@ -22,6 +22,7 @@ import {
 } from "@/db/schemas/accounts.schema"
 import { customers } from "@/db/schemas/customer.schema"
 import { attendance, employees, leaveRequests } from "@/db/schemas/hrms.schema"
+import { payrollLines, payrollRuns } from "@/db/schemas/payroll.schema"
 import {
   itineraries,
   itineraryDays,
@@ -43,6 +44,7 @@ import * as packageActionsRaw from "@/app/admin/packages/actions"
 import * as bookingActionsRaw from "@/app/admin/trips/actions"
 import * as accountActionsRaw from "@/app/admin/accounts-actions"
 import * as employeeActionsRaw from "@/app/admin/employees/actions"
+import * as payrollActionsRaw from "@/app/admin/payroll/actions"
 import * as reportActionsRaw from "@/app/admin/reports/actions"
 import * as userActionsRaw from "@/app/admin/users/actions"
 
@@ -70,6 +72,7 @@ const packageActions = loose(packageActionsRaw)
 const bookingActions = loose(bookingActionsRaw)
 const accountActions = loose(accountActionsRaw)
 const employeeActions = loose(employeeActionsRaw)
+const payrollActions = loose(payrollActionsRaw)
 const reportActions = loose(reportActionsRaw)
 const userActions = loose(userActionsRaw)
 
@@ -107,6 +110,7 @@ const emptyBin = () => ({
   category: [] as string[],
   employee: [] as string[],
   leave: [] as string[],
+  payrollRun: [] as string[],
   user: [] as string[],
 })
 
@@ -1161,7 +1165,8 @@ export async function GET(request: Request) {
         receivedAt: iso(0),
         isAdvance: false,
       }),
-      "outstanding balance"
+      // Matches the action's wording — see createReceipt in accounts-actions.ts.
+      "balance due on this trip"
     )
 
     mustFail(
@@ -1532,6 +1537,154 @@ export async function GET(request: Request) {
     )
   })
 
+  // --------------------------------------------------------------- payroll
+
+  await section("payroll", async () => {
+    // A month far enough back that no real attendance or run can collide with
+    // it, and one with 30 days so the day rate divides evenly.
+    const MONTH = "2019-04"
+    const day = (n: number) => `${MONTH}-${String(n).padStart(2, "0")}`
+
+    const person = must(
+      "createEmployee (payroll)",
+      await employeeActions.createEmployee({
+        name: `${TAG} Payroll Subject`,
+        phone: phone(),
+        monthlySalary: "30000",
+        status: "active",
+      })
+    )
+    bin.employee.push(person.id)
+
+    // 30,000 over 30 days = ₹1,000 a day. Two absences, three leave days (two
+    // of them covered by the monthly allowance) and one half-day come to 3.5
+    // unpaid days, so ₹3,500 should come off.
+    const marks: [number, string][] = [
+      [1, "present"],
+      [2, "absent"],
+      [3, "absent"],
+      [4, "leave"],
+      [5, "leave"],
+      [6, "leave"],
+      [7, "half_day"],
+      [8, "week_off"],
+      [9, "holiday"],
+    ]
+    for (const [n, status] of marks) {
+      must(
+        `markAttendance ${day(n)} ${status}`,
+        await employeeActions.markAttendance({
+          employeeId: person.id,
+          date: day(n),
+          status,
+        })
+      )
+    }
+
+    const preview = must(
+      "fetchPayrollPreview",
+      await payrollActions.fetchPayrollPreview({ month: MONTH })
+    )
+    expect("preview is not posted yet", preview.posted === null)
+    expect("preview covers 30 days", preview.daysInMonth === 30)
+    expect("paid-leave allowance is 2", preview.paidLeaveAllowance === 2)
+
+    const line = preview.lines.find((l) => l.employeeId === person.id)
+    if (!line) throw new Error("payroll preview is missing the test employee")
+
+    expect("day rate is salary / days in month", line.dayRate === 100_000, `${line.dayRate}`)
+    expect("two absences counted", line.daysAbsent === 2, `${line.daysAbsent}`)
+    expect(
+      "two leave days covered by the allowance",
+      line.daysPaidLeave === 2,
+      `${line.daysPaidLeave}`
+    )
+    expect(
+      "third leave day is unpaid",
+      line.daysUnpaidLeave === 1,
+      `${line.daysUnpaidLeave}`
+    )
+    expect("half-day counts as half", line.unpaidDays === 3.5, `${line.unpaidDays}`)
+    expect("21 days left unmarked", line.daysUnmarked === 21, `${line.daysUnmarked}`)
+    expect("deduction is 3,500", line.deduction === 350_000, `${line.deduction}`)
+    expect("net pay is 26,500", line.netPay === 2_650_000, `${line.netPay}`)
+
+    mustFail(
+      "posting a total the operator never saw is refused",
+      await payrollActions.postPayroll({
+        month: MONTH,
+        expectedNetTotal: preview.netTotal + 1,
+      }),
+      "changed while you were looking"
+    )
+
+    const posted = must(
+      "postPayroll",
+      await payrollActions.postPayroll({
+        month: MONTH,
+        expectedNetTotal: preview.netTotal,
+      })
+    )
+    bin.payrollRun.push(posted.runId)
+
+    // Bin the expenses the run wrote before asserting on them, so a later
+    // failure still cleans up.
+    const written = await db
+      .select({ expenseId: payrollLines.expenseId, netPay: payrollLines.netPay })
+      .from(payrollLines)
+      .where(eq(payrollLines.runId, posted.runId))
+    for (const row of written) if (row.expenseId) bin.expense.push(row.expenseId)
+
+    expect(
+      "one expense per employee on the run",
+      written.length === preview.lines.length,
+      `${written.length} lines vs ${preview.lines.length} employees`
+    )
+    expect(
+      "every line wrote an expense",
+      written.every((row) => row.expenseId),
+      "a line has no expense"
+    )
+
+    const ourExpense = await db
+      .select({ amount: expenses.amount, description: expenses.description })
+      .from(payrollLines)
+      .innerJoin(expenses, eq(expenses.id, payrollLines.expenseId))
+      .where(eq(payrollLines.employeeId, person.id))
+    expect(
+      "the expense is the net pay, not the gross",
+      Number(ourExpense[0]?.amount) === 2_650_000,
+      `${ourExpense[0]?.amount}`
+    )
+    expect(
+      "the expense names the employee and month",
+      Boolean(ourExpense[0]?.description?.includes(TAG)),
+      ourExpense[0]?.description
+    )
+
+    const after = must(
+      "fetchPayrollPreview after posting",
+      await payrollActions.fetchPayrollPreview({ month: MONTH })
+    )
+    expect("posted month reads back as posted", after.posted !== null)
+    expect(
+      "stored figures match what was posted",
+      after.netTotal === preview.netTotal,
+      `${after.netTotal} vs ${preview.netTotal}`
+    )
+
+    mustFail(
+      "a month cannot be posted twice",
+      await payrollActions.postPayroll({
+        month: MONTH,
+        expectedNetTotal: preview.netTotal,
+      }),
+      "already been posted"
+    )
+
+    must("fetchPayrollRuns", await payrollActions.fetchPayrollRuns())
+  })
+
   // --------------------------------------------------------------- reports
 
   await section("reports", async () => {
@@ -1721,6 +1874,9 @@ export async function GET(request: Request) {
   await purge("receipts", del(receipts, bin.receipt))
   await purge("supplierPayments", del(supplierPayments, bin.supplierPayment))
   await purge("expenses", del(expenses, bin.expense))
+  // Lines cascade from the run; expenses are already gone by here, and the
+  // line's expense reference is ON DELETE SET NULL so the order is safe.
+  await purge("payrollRuns", del(payrollRuns, bin.payrollRun))
   await purge("expenseCategories", del(expenseCategories, bin.category))
   await purge("vehicleAssignments", del(vehicleAssignments, bin.assignment))
   await purge("tripCostItems", del(tripCostItems, bin.cost))

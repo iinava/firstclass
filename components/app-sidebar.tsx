@@ -5,11 +5,11 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   BanknoteIcon,
+  BookOpenIcon,
   BriefcaseIcon,
   BusIcon,
   CalendarCheckIcon,
   ChartNoAxesCombinedIcon,
-  InfoIcon,
   LayoutDashboardIcon,
   MapIcon,
   MapPinnedIcon,
@@ -149,9 +149,17 @@ const NAV: NavGroup[] = [
       },
       {
         title: "Attendance",
+        // The register and the approval queue — matches the page's own gate,
+        // which is hrms:view alone.
         url: "/admin/attendance",
+        icon: CalendarCheckIcon,
+        permissions: ["hrms:view"],
+      },
+      {
+        title: "Payroll",
+        url: "/admin/payroll",
         icon: BanknoteIcon,
-        permissions: ["hrms:view", "attendance:mark"],
+        permissions: ["payroll:view"],
       },
     ],
   },
@@ -171,9 +179,9 @@ const NAV: NavGroup[] = [
         permissions: ["settings:view"],
       },
       {
-        title: "Guide",
+        title: "User Manual",
         url: "/admin/info",
-        icon: InfoIcon,
+        icon: BookOpenIcon,
         permissions: ["dashboard:view"],
       },
     ],

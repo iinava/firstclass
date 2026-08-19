@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
-import { CheckIcon, SaveIcon, XIcon } from "lucide-react"
+import { CheckIcon, PlusIcon, SaveIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { OptionSelect, optionsFrom } from "@/components/shared/option-select"
@@ -27,6 +27,7 @@ import {
   fetchLeaves,
   saveAttendanceDay,
 } from "@/app/admin/employees/actions"
+import { RecordLeaveDialog } from "./record-leave-dialog"
 
 const ATTENDANCE_STATUS_OPTIONS = optionsFrom(
   ATTENDANCE_STATUSES,
@@ -39,22 +40,38 @@ interface DraftEntry {
   checkOut: string
 }
 
-export function AttendanceView() {
+export function AttendanceView({
+  canRecordLeave,
+  canApproveLeave,
+}: {
+  /** Managers and above record what an employee asked for. */
+  canRecordLeave: boolean
+  /** Only Admin and Super Admin decide it. */
+  canApproveLeave: boolean
+}) {
   const { params, setFilter } = useListParams<{ date: string }>(["date"])
   const date = params.date || new Date().toISOString().slice(0, 10)
+  const [recordOpen, setRecordOpen] = React.useState(false)
 
+  // Every status, not just pending — a manager who records leave needs to see
+  // what happened to it afterwards, and a decided request would vanish from a
+  // pending-only list.
   const { data: leaves, isLoading: leavesLoading } = useQuery({
-    queryKey: qk.hrms.leaves({ status: "pending" }),
+    queryKey: qk.hrms.leaves({ page: 1, pageSize: 50 }),
     queryFn: async () =>
       unwrapAction(
         await fetchLeaves({
           page: 1,
-          pageSize: 25,
+          pageSize: 50,
           sortDir: "desc",
-          status: "pending",
         } as never)
       ),
   })
+
+  const pendingCount = React.useMemo(
+    () => (leaves?.rows ?? []).filter((row) => row.status === "pending").length,
+    [leaves]
+  )
 
   const leaveColumns = React.useMemo<DataTableColumn<LeaveListRow>[]>(
     () => [
@@ -100,13 +117,36 @@ export function AttendanceView() {
         ),
       },
       {
-        key: "actions",
-        header: <span className="sr-only">Decide</span>,
-        className: "w-32",
-        cell: (row) => <LeaveDecisionButtons leaveId={row.id} />,
+        key: "status",
+        header: "Status",
+        cell: (row) => (
+          <div className="min-w-0">
+            <StatusBadge status={row.status} />
+            {row.decisionNote && (
+              <p className="mt-0.5 max-w-xs truncate text-[13px] text-muted-foreground">
+                {row.decisionNote}
+              </p>
+            )}
+          </div>
+        ),
       },
+      // The column is dropped rather than disabled for anyone who cannot
+      // decide — a row of dead buttons reads as a broken screen.
+      ...(canApproveLeave
+        ? [
+            {
+              key: "actions",
+              header: <span className="sr-only">Decide</span>,
+              className: "w-32",
+              cell: (row: LeaveListRow) =>
+                row.status === "pending" ? (
+                  <LeaveDecisionButtons leaveId={row.id} />
+                ) : null,
+            } satisfies DataTableColumn<LeaveListRow>,
+          ]
+        : []),
     ],
-    []
+    [canApproveLeave]
   )
 
   return (
@@ -114,7 +154,7 @@ export function AttendanceView() {
       <TabsList>
         <TabsTrigger value="register">Daily register</TabsTrigger>
         <TabsTrigger value="leaves">
-          Leave requests{leaves?.total ? ` (${leaves.total})` : ""}
+          Leave{pendingCount ? ` (${pendingCount})` : ""}
         </TabsTrigger>
       </TabsList>
 
@@ -128,15 +168,32 @@ export function AttendanceView() {
         />
       </TabsContent>
 
-      <TabsContent value="leaves">
+      <TabsContent value="leaves" className="flex flex-col gap-3">
+        {canRecordLeave && (
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => setRecordOpen(true)}>
+              <PlusIcon data-icon="inline-start" />
+              Record leave
+            </Button>
+          </div>
+        )}
+
         <DataTable
           columns={leaveColumns}
           rows={leaves?.rows}
           getRowId={(row) => row.id}
           isLoading={leavesLoading}
-          emptyTitle="No pending leave requests"
-          emptyDescription="Requests awaiting a decision appear here."
+          emptyTitle="No leave requests"
+          emptyDescription={
+            canRecordLeave
+              ? "Record what an employee asked for and it appears here."
+              : "Leave recorded by a manager appears here."
+          }
         />
+
+        {canRecordLeave && (
+          <RecordLeaveDialog open={recordOpen} onOpenChange={setRecordOpen} />
+        )}
       </TabsContent>
     </Tabs>
   )

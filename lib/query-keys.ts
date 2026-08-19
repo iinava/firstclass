@@ -72,6 +72,11 @@ export const qk = {
     attendance: (params: ListParams = {}) => ["hrms", "attendance", params] as const,
     leaves: (params: ListParams = {}) => ["hrms", "leaves", params] as const,
   },
+  payroll: {
+    all: ["payroll"] as const,
+    month: (month: string) => ["payroll", "month", month] as const,
+    runs: ["payroll", "runs"] as const,
+  },
   reports: {
     all: ["reports"] as const,
     dashboard: (params: ListParams = {}) => ["reports", "dashboard", params] as const,
