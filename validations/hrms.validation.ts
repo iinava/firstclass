@@ -19,6 +19,7 @@ export const ATTENDANCE_STATUSES = [
   "leave",
   "holiday",
   "week_off",
+  "leave_unpaid",
 ] as const
 export const LEAVE_TYPES = ["casual", "sick", "paid", "unpaid", "comp_off"] as const
 export const LEAVE_STATUSES = ["pending", "approved", "rejected", "cancelled"] as const
@@ -38,6 +39,7 @@ export const ATTENDANCE_STATUS_LABELS: Record<
   leave: "Leave",
   holiday: "Holiday",
   week_off: "Week off",
+  leave_unpaid: "Leave (unpaid)",
 }
 
 export const LEAVE_TYPE_LABELS: Record<(typeof LEAVE_TYPES)[number], string> = {

@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { ActionFailure, defineAction } from "@/lib/action"
+import { ActionFailure, AuthorizationError, defineAction } from "@/lib/action"
 import { diffChanges, recordAudit } from "@/lib/audit"
 import { nextLeadCode } from "@/lib/codes"
 import { canViewAll } from "@/lib/rbac"
@@ -29,6 +29,22 @@ import type { SessionPayload } from "@/types/auth"
 /** Sales staff only ever see their own pipeline; managers and up see everything. */
 function scopeFor(session: SessionPayload): string | null {
   return canViewAll(session.role, "lead") ? null : session.userId
+}
+
+/**
+ * `scopeFor` restricts list views to a sales user's own pipeline, but a
+ * per-record action reached by id has to re-apply the same restriction
+ * itself — otherwise a sales user can act on any lead by id/URL even though
+ * it's filtered out of their own list view.
+ */
+function assertLeadInScope(
+  session: SessionPayload,
+  lead: { assignedTo: string | null }
+): void {
+  const scope = scopeFor(session)
+  if (scope && lead.assignedTo !== scope) {
+    throw new AuthorizationError()
+  }
 }
 
 export const fetchLeads = defineAction({
@@ -145,6 +161,7 @@ export const updateLead = defineAction({
   handler: async ({ id, ...values }, { session }) => {
     const before = await leadService.getLeadRaw(id)
     if (!before) throw new ActionFailure("Lead not found")
+    assertLeadInScope(session, before)
 
     const lead = await leadService.updateLead(id, {
       ...values,
@@ -176,6 +193,7 @@ export const updateLeadStatus = defineAction({
   handler: async ({ id, status, lostReason }, { session }) => {
     const before = await leadService.getLeadRaw(id)
     if (!before) throw new ActionFailure("Lead not found")
+    assertLeadInScope(session, before)
     if (before.status === status) return before
 
     const isClosing = status === "won" || status === "lost"
@@ -214,6 +232,10 @@ export const assignLead = defineAction({
   permission: "lead:assign",
   schema: AssignLeadSchema,
   handler: async ({ id, assignedTo }, { session }) => {
+    const before = await leadService.getLeadRaw(id)
+    if (!before) throw new ActionFailure("Lead not found")
+    assertLeadInScope(session, before)
+
     const lead = await leadService.updateLead(id, { assignedTo })
     if (!lead) throw new ActionFailure("Lead not found")
 
@@ -244,6 +266,7 @@ export const deleteLead = defineAction({
   handler: async ({ id }, { session }) => {
     const before = await leadService.getLeadRaw(id)
     if (!before) throw new ActionFailure("Lead not found")
+    assertLeadInScope(session, before)
     if (before.status === "won") {
       throw new ActionFailure(
         "Won leads cannot be deleted — they are linked to a booking"

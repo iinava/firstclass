@@ -10,6 +10,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 import { actor, money, pk, softDelete, timestamps } from "./_shared"
+import { bookings } from "./booking.schema"
 import { suppliers } from "./supplier.schema"
 
 export const vehicleTypeEnum = pgEnum("vehicle_type", [
@@ -84,7 +85,9 @@ export const vehicleAssignments = pgTable(
   "vehicle_assignments",
   {
     id: pk(),
-    bookingId: uuid("booking_id").notNull(),
+    bookingId: uuid("booking_id")
+      .notNull()
+      .references(() => bookings.id),
     vehicleId: uuid("vehicle_id")
       .notNull()
       .references(() => vehicles.id),

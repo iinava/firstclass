@@ -227,33 +227,32 @@ export function FleetView() {
         header: <span className="sr-only">Actions</span>,
         className: "w-10",
         cell: (row) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button variant="ghost" size="icon-sm" />}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <MoreHorizontalIcon className="size-4" />
-              <span className="sr-only">Open actions</span>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => {
-                  setEditingVehicle(row)
-                  setVehicleFormOpen(true)
-                }}
-              >
-                <PencilIcon className="size-4" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => setDeletingVehicle(row)}
-              >
-                <Trash2Icon className="size-4" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div onClick={(event) => event.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" />}>
+                <MoreHorizontalIcon className="size-4" />
+                <span className="sr-only">Open actions</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setEditingVehicle(row)
+                    setVehicleFormOpen(true)
+                  }}
+                >
+                  <PencilIcon className="size-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => setDeletingVehicle(row)}
+                >
+                  <Trash2Icon className="size-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         ),
       },
     ],
@@ -326,33 +325,32 @@ export function FleetView() {
         header: <span className="sr-only">Actions</span>,
         className: "w-10",
         cell: (row) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button variant="ghost" size="icon-sm" />}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <MoreHorizontalIcon className="size-4" />
-              <span className="sr-only">Open actions</span>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => {
-                  setEditingDriver(row)
-                  setDriverFormOpen(true)
-                }}
-              >
-                <PencilIcon className="size-4" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => setDeletingDriver(row)}
-              >
-                <Trash2Icon className="size-4" />
-                Remove
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div onClick={(event) => event.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" />}>
+                <MoreHorizontalIcon className="size-4" />
+                <span className="sr-only">Open actions</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setEditingDriver(row)
+                    setDriverFormOpen(true)
+                  }}
+                >
+                  <PencilIcon className="size-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => setDeletingDriver(row)}
+                >
+                  <Trash2Icon className="size-4" />
+                  Remove
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         ),
       },
     ],

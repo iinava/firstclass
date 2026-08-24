@@ -51,9 +51,9 @@ export default async function TripInvoicePage({
             <p className="mt-1 text-xs text-neutral-600">
               {formatPhone(COMPANY.phone)} · {COMPANY.email}
             </p>
-            {COMPANY.gstin && (
-              <p className="mt-1 text-xs text-neutral-600">GSTIN: {COMPANY.gstin}</p>
-            )}
+            <p className="mt-1 text-xs text-neutral-600">
+              GSTIN: {COMPANY.gstin || "NOT SET — update lib/company.ts before sending"}
+            </p>
           </div>
           <div className="text-right">
             <p className="text-lg font-semibold uppercase tracking-widest">Invoice</p>

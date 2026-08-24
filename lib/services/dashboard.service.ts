@@ -112,7 +112,7 @@ export async function getDashboardSummary(restrictToUserId?: string | null) {
       })
       .from(leads)
       .innerJoin(customers, eq(customers.id, leads.customerId))
-      .where(and(isNull(leads.deletedAt), leadScope))
+      .where(and(isNull(leads.deletedAt), isNull(customers.deletedAt), leadScope))
       .orderBy(desc(leads.createdAt))
       .limit(6),
   ])

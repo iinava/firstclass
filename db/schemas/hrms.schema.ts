@@ -27,6 +27,7 @@ export const attendanceStatusEnum = pgEnum("attendance_status", [
   "leave",
   "holiday",
   "week_off",
+  "leave_unpaid",
 ])
 
 export const leaveTypeEnum = pgEnum("leave_type", [

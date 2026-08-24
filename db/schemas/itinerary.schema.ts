@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   boolean,
   date,
   index,
@@ -46,16 +47,22 @@ export const itineraries = pgTable(
     /** Opaque token for the public share URL at /i/<shareToken>. */
     shareToken: text("share_token").notNull(),
     isShareEnabled: boolean("is_share_enabled").notNull().default(true),
+    /** Null means never expires (older tokens); new/regenerated tokens get one. */
+    shareTokenExpiresAt: timestamp("share_token_expires_at", { withTimezone: true }),
 
     // Linkage — null for packages, set for custom quotes.
     leadId: uuid("lead_id").references(() => leads.id, { onDelete: "set null" }),
     customerId: uuid("customer_id").references(() => customers.id),
     /** Set when a custom quote was seeded from a package. */
-    sourcePackageId: uuid("source_package_id"),
+    sourcePackageId: uuid("source_package_id").references(
+      (): AnyPgColumn => itineraries.id
+    ),
 
     // Versioning — clients change their minds; keep v1, v2, v3.
     version: integer("version").notNull().default(1),
-    parentItineraryId: uuid("parent_itinerary_id"),
+    parentItineraryId: uuid("parent_itinerary_id").references(
+      (): AnyPgColumn => itineraries.id
+    ),
 
     destination: text("destination"),
     durationDays: integer("duration_days").notNull().default(1),

@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache"
 import { differenceInCalendarDays, parseISO } from "date-fns"
 import { z } from "zod"
-import { ActionFailure, defineAction } from "@/lib/action"
+import { ActionFailure, AuthorizationError, defineAction } from "@/lib/action"
 import { diffChanges, recordAudit } from "@/lib/audit"
 import { nextEmployeeCode } from "@/lib/codes"
+import { hasPermission } from "@/lib/rbac"
 import * as service from "@/lib/services/hrms.service"
 import {
   AttendanceListParamsSchema,
@@ -140,6 +141,16 @@ export const markAttendance = defineAction({
   permission: "attendance:mark",
   schema: MarkAttendanceSchema,
   handler: async (input, { session }) => {
+    // `attendance:mark` is also granted to STAFF so anyone can clock in — but
+    // without hrms:manage they may only mark their own attendance, not any
+    // arbitrary employeeId.
+    if (!hasPermission(session.role, "hrms:manage")) {
+      const employee = await service.getEmployee(input.employeeId)
+      if (!employee || employee.userId !== session.userId) {
+        throw new AuthorizationError()
+      }
+    }
+
     const row = await service.upsertAttendance({
       employeeId: input.employeeId,
       date: input.date,

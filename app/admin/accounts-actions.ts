@@ -58,17 +58,9 @@ export const createReceipt = defineAction({
     const booking = await bookingService.getBookingRaw(input.bookingId)
     if (!booking) throw new ActionFailure("Trip not found")
 
-    const ledger = await bookingService.getBookingLedger(input.bookingId)
-    if (input.amount > ledger.balance) {
-      throw new ActionFailure(
-        `Balance due on this trip is only ${formatMoney(ledger.balance)}`,
-        { amount: [`Cannot exceed ${formatMoney(ledger.balance)}`] }
-      )
-    }
-
     const number = await nextReceiptNumber(new Date(input.receivedAt))
 
-    const receipt = await accounts.createReceipt({
+    const result = await accounts.createReceiptAtomic(input.bookingId, input.amount, {
       number,
       bookingId: input.bookingId,
       customerId: booking.customerId,
@@ -80,6 +72,13 @@ export const createReceipt = defineAction({
       notes: input.notes,
       receivedBy: session.userId,
     })
+    if (!result.ok) {
+      throw new ActionFailure(
+        `Balance due on this trip is only ${formatMoney(result.balance)}`,
+        { amount: [`Cannot exceed ${formatMoney(result.balance)}`] }
+      )
+    }
+    const receipt = result.receipt
 
     await recordAudit({
       entity: "receipts",

@@ -8,5 +8,7 @@ export const COMPANY = {
   address: "MG Road, Kochi, Kerala 682016",
   phone: "9876543210",
   email: "hello@firstclasstravels.in",
+  // TODO(pre-go-live): real GSTIN required — invoices currently print a
+  // visible "GSTIN missing" flag instead of silently omitting the line.
   gstin: "",
 } as const

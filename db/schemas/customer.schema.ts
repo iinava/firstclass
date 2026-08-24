@@ -1,4 +1,5 @@
 import { index, pgEnum, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
 import { actor, pk, softDelete, timestamps } from "./_shared"
 
 export const leadSourceEnum = pgEnum("lead_source", [
@@ -38,10 +39,11 @@ export const customers = pgTable(
     ...softDelete,
   },
   (t) => [
-    // Partial-unique on phone would be ideal but drizzle-kit RC has patchy
-    // support for `.where()` on unique indexes — enforced in the service layer
-    // via findByPhone() plus this index for lookup speed.
-    uniqueIndex("customers_phone_key").on(t.phone),
+    // Partial on deleted_at is null so a soft-deleted customer's phone number
+    // can be reused by a new/returning customer record.
+    uniqueIndex("customers_phone_key")
+      .on(t.phone)
+      .where(sql`${t.deletedAt} is null`),
     index("customers_name_idx").on(t.name),
     index("customers_deleted_at_idx").on(t.deletedAt),
   ]

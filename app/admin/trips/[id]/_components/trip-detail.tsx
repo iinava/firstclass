@@ -2,9 +2,11 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import {
   ArrowLeftIcon,
+  BanIcon,
   BusIcon,
   CalendarIcon,
   IndianRupeeIcon,
@@ -15,6 +17,7 @@ import {
   ReceiptIcon,
   Trash2Icon,
   TrendingUpIcon,
+  UsersIcon,
   XCircleIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -46,18 +49,25 @@ import {
 import type { TripCostRow } from "@/lib/services/booking.service"
 import { removeAssignment, fetchAssignments } from "@/app/admin/fleet/actions"
 import {
+  deleteBooking,
   deleteTripCost,
   fetchBooking,
   fetchBookingLedger,
+  fetchPax,
   fetchTripCosts,
+  removePax,
   updateBookingStatus,
 } from "../../actions"
 import { AssignVehicleDialog } from "./assign-vehicle-dialog"
 import { TripFormDialog } from "../../_components/trip-form-dialog"
 import { ReceiptDialog } from "./receipt-dialog"
 import { TripCostDialog } from "./trip-cost-dialog"
+import { PaxDialog } from "./pax-dialog"
+import { CancelBookingDialog } from "./cancel-booking-dialog"
 
 export function TripDetail({ tripId }: { tripId: string }) {
+  const router = useRouter()
+
   const { data: trip } = useQuery({
     queryKey: qk.bookings.detail(tripId),
     queryFn: async () => unwrapAction(await fetchBooking({ id: tripId })),
@@ -78,12 +88,20 @@ export function TripDetail({ tripId }: { tripId: string }) {
     queryFn: async () => unwrapAction(await fetchAssignments({ bookingId: tripId })),
   })
 
+  const { data: pax } = useQuery({
+    queryKey: qk.bookings.pax(tripId),
+    queryFn: async () => unwrapAction(await fetchPax({ bookingId: tripId })),
+  })
+
   const [costOpen, setCostOpen] = React.useState(false)
   const [editingCost, setEditingCost] = React.useState<TripCostRow | null>(null)
   const [deletingCost, setDeletingCost] = React.useState<TripCostRow | null>(null)
   const [receiptOpen, setReceiptOpen] = React.useState(false)
   const [assignOpen, setAssignOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
+  const [paxOpen, setPaxOpen] = React.useState(false)
+  const [cancelOpen, setCancelOpen] = React.useState(false)
+  const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [tab, setTab] = React.useState("costs")
 
   const statusMutation = useActionMutation({
@@ -103,6 +121,19 @@ export function TripDetail({ tripId }: { tripId: string }) {
     action: removeAssignment,
     successMessage: "Vehicle unassigned",
     invalidate: [qk.vehicles.all, qk.bookings.all],
+  })
+
+  const removePaxMutation = useActionMutation({
+    action: removePax,
+    successMessage: "Passenger removed",
+    invalidate: [qk.bookings.all],
+  })
+
+  const deleteBookingMutation = useActionMutation({
+    action: deleteBooking,
+    successMessage: "Trip deleted",
+    invalidate: [qk.bookings.all, qk.reports.all],
+    onSuccess: () => router.push("/admin/trips"),
   })
 
   const costColumns = React.useMemo<DataTableColumn<TripCostRow>[]>(
@@ -272,6 +303,28 @@ export function TripDetail({ tripId }: { tripId: string }) {
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuGroup>
+
+                  {!isClosed && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onClick={() => setCancelOpen(true)}
+                      >
+                        <BanIcon className="size-4" />
+                        Cancel trip
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={(ledger?.received ?? 0) > 0}
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    <Trash2Icon className="size-4" />
+                    Delete trip
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -347,6 +400,9 @@ export function TripDetail({ tripId }: { tripId: string }) {
             <TabsTrigger value="vehicles">
               Vehicles{assignments?.length ? ` (${assignments.length})` : ""}
             </TabsTrigger>
+            <TabsTrigger value="pax">
+              Passengers{pax?.length ? ` (${pax.length})` : ""}
+            </TabsTrigger>
             <TabsTrigger value="summary">Breakdown</TabsTrigger>
           </TabsList>
 
@@ -366,6 +422,12 @@ export function TripDetail({ tripId }: { tripId: string }) {
             <Button size="sm" onClick={() => setAssignOpen(true)}>
               <PlusIcon data-icon="inline-start" />
               Assign vehicle
+            </Button>
+          )}
+          {tab === "pax" && (
+            <Button size="sm" onClick={() => setPaxOpen(true)}>
+              <PlusIcon data-icon="inline-start" />
+              Add passenger
             </Button>
           )}
         </div>
@@ -411,6 +473,47 @@ export function TripDetail({ tripId }: { tripId: string }) {
                     aria-label="Unassign vehicle"
                     disabled={removeVehicle.isPending}
                     onClick={() => removeVehicle.mutate({ id: assignment.id })}
+                  >
+                    <XCircleIcon className="size-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </TabsContent>
+
+        <TabsContent value="pax">
+          {!pax?.length ? (
+            <div className="rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground">
+              <UsersIcon className="mx-auto mb-2 size-6 text-muted-foreground/60" />
+              No passengers added yet.
+            </div>
+          ) : (
+            <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+              {pax.map((p) => (
+                <li
+                  key={p.id}
+                  className="flex h-14 items-center justify-between gap-3 px-5"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{p.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {[
+                        p.age ? `${p.age} yrs` : null,
+                        p.gender,
+                        p.phone ? formatPhone(p.phone) : null,
+                        p.idType && p.idNumber ? `${p.idType} ${p.idNumber}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "No additional details"}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Remove passenger"
+                    disabled={removePaxMutation.isPending}
+                    onClick={() => removePaxMutation.mutate({ id: p.id })}
                   >
                     <XCircleIcon className="size-4" />
                   </Button>
@@ -531,6 +634,14 @@ export function TripDetail({ tripId }: { tripId: string }) {
         booking={trip}
       />
 
+      <PaxDialog open={paxOpen} onOpenChange={setPaxOpen} bookingId={tripId} />
+
+      <CancelBookingDialog
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        bookingId={tripId}
+      />
+
       <ConfirmDialog
         open={Boolean(deletingCost)}
         onOpenChange={(open) => !open && setDeletingCost(null)}
@@ -540,6 +651,17 @@ export function TripDetail({ tripId }: { tripId: string }) {
         variant="destructive"
         isPending={removeCost.isPending}
         onConfirm={() => deletingCost && removeCost.mutate({ id: deletingCost.id })}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete this trip?"
+        description="This can't be undone. Trips with money already received can't be deleted — cancel them instead."
+        confirmLabel="Delete"
+        variant="destructive"
+        isPending={deleteBookingMutation.isPending}
+        onConfirm={() => deleteBookingMutation.mutate({ id: tripId })}
       />
     </div>
   )

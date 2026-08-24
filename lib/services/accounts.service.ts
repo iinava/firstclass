@@ -1,6 +1,6 @@
 import "server-only"
 import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm"
-import { db } from "@/db/drizzle"
+import { db, txDb, type Tx } from "@/db/drizzle"
 import {
   expenseCategories,
   expenses,
@@ -13,6 +13,7 @@ import { customers } from "@/db/schemas/customer.schema"
 import { suppliers } from "@/db/schemas/supplier.schema"
 import { tripCostItems } from "@/db/schemas/trip-cost.schema"
 import { vehicles } from "@/db/schemas/vehicle.schema"
+import { getBookingLedger } from "@/lib/services/booking.service"
 import type { PaginatedResult } from "@/validations/common.validation"
 import type {
   ExpenseListParams,
@@ -105,9 +106,35 @@ export async function getReceipt(id: string) {
   return row ?? null
 }
 
-export async function createReceipt(values: typeof receipts.$inferInsert) {
-  const [row] = await db.insert(receipts).values(values).returning()
+export async function createReceipt(
+  values: typeof receipts.$inferInsert,
+  client: Tx | typeof db = db
+) {
+  const [row] = await client.insert(receipts).values(values).returning()
   return row
+}
+
+/**
+ * Locks the booking row, recomputes the balance from inside the transaction,
+ * then inserts — closes the race where two concurrent receipts each pass the
+ * "amount <= balance" check before either has committed.
+ */
+export async function createReceiptAtomic(
+  bookingId: string,
+  amount: number,
+  values: typeof receipts.$inferInsert
+): Promise<{ ok: true; receipt: typeof receipts.$inferSelect } | { ok: false; balance: number }> {
+  return txDb.transaction(async (tx) => {
+    await tx.select({ id: bookings.id }).from(bookings).where(eq(bookings.id, bookingId)).for("update")
+
+    const ledger = await getBookingLedger(bookingId, tx)
+    if (amount > ledger.balance) {
+      return { ok: false, balance: ledger.balance }
+    }
+
+    const receipt = await createReceipt(values, tx)
+    return { ok: true, receipt }
+  })
 }
 
 export async function voidReceipt(id: string, reason: string) {
@@ -136,18 +163,23 @@ export async function createSupplierPayment(
   return row
 }
 
-/** Mirrors applyReceiptToInvoice for the payables side. */
+/**
+ * Mirrors applyReceiptToInvoice for the payables side. Clamps the stored
+ * paid_amount into [0, costAmount] — a payment reversal (large negative
+ * delta) must not drive it negative, and it can never exceed the cost.
+ */
 export async function applyPaymentToCostItem(
   tripCostItemId: string,
   delta: number
 ): Promise<void> {
+  const clamped = sql`greatest(0, least(${tripCostItems.costAmount}, ${tripCostItems.paidAmount} + ${delta}))`
   await db
     .update(tripCostItems)
     .set({
-      paidAmount: sql`${tripCostItems.paidAmount} + ${delta}`,
+      paidAmount: clamped,
       paymentStatus: sql`case
-        when ${tripCostItems.paidAmount} + ${delta} >= ${tripCostItems.costAmount} then 'paid'::payable_status
-        when ${tripCostItems.paidAmount} + ${delta} > 0 then 'partial'::payable_status
+        when ${clamped} >= ${tripCostItems.costAmount} then 'paid'::payable_status
+        when ${clamped} > 0 then 'partial'::payable_status
         else 'unpaid'::payable_status
       end`,
     })

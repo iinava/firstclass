@@ -1,5 +1,5 @@
 import "server-only"
-import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm"
 import { db } from "@/db/drizzle"
 import { expenses, expenseCategories } from "@/db/schemas/accounts.schema"
 import { attendance, employees } from "@/db/schemas/hrms.schema"
@@ -86,8 +86,8 @@ function monthBounds(month: string) {
  *
  *   day rate  = monthly salary / days in the month (calendar days, so a month
  *               with every day paid comes to exactly the salary)
- *   unpaid    = absent + leave beyond the monthly allowance + half a day per
- *               half-day
+ *   unpaid    = absent + leave beyond the monthly allowance + unpaid leave +
+ *               half a day per half-day
  *   deduction = unpaid days x day rate
  *
  * Holidays, week-offs and days nobody marked are paid. Unmarked days are counted
@@ -109,7 +109,12 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
         monthlySalary: employees.monthlySalary,
       })
       .from(employees)
-      .where(and(eq(employees.status, "active"), sql`${employees.deletedAt} is null`))
+      .where(
+        and(
+          inArray(employees.status, ["active", "on_leave"]),
+          sql`${employees.deletedAt} is null`
+        )
+      )
       .orderBy(asc(employees.name)),
 
     db
@@ -149,14 +154,24 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
     const daysHalf = counts.half_day ?? 0
     const daysAbsent = counts.absent ?? 0
     const leaveDays = counts.leave ?? 0
+    const leaveDaysUnpaid = counts.leave_unpaid ?? 0
     const daysHoliday = counts.holiday ?? 0
     const daysWeekOff = counts.week_off ?? 0
 
+    // Only leave marked as paid-eligible draws on the monthly allowance —
+    // leave approved as "unpaid" is deducted in full regardless.
     const daysPaidLeave = Math.min(leaveDays, PAID_LEAVE_PER_MONTH)
-    const daysUnpaidLeave = Math.max(0, leaveDays - PAID_LEAVE_PER_MONTH)
+    const daysUnpaidLeave =
+      Math.max(0, leaveDays - PAID_LEAVE_PER_MONTH) + leaveDaysUnpaid
 
     const marked =
-      daysPresent + daysHalf + daysAbsent + leaveDays + daysHoliday + daysWeekOff
+      daysPresent +
+      daysHalf +
+      daysAbsent +
+      leaveDays +
+      leaveDaysUnpaid +
+      daysHoliday +
+      daysWeekOff
     const daysUnmarked = Math.max(0, daysInMonth - marked)
 
     const dayRate = Math.round(salary / daysInMonth)

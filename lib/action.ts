@@ -3,6 +3,7 @@ import { unstable_rethrow } from "next/navigation"
 import { z } from "zod"
 import { getSession } from "@/lib/session"
 import { hasPermission, type Permission } from "@/lib/rbac"
+import { getUser } from "@/lib/services/user.service"
 import type { SessionPayload } from "@/types/auth"
 
 /**
@@ -129,7 +130,17 @@ export function defineAction<TInput, TOutput>({
         return actionError("Your session has expired. Please sign in again.")
       }
 
-      if (permission && !hasPermission(session.role, permission)) {
+      // The JWT's role/isActive are frozen at login and trusted for up to 7
+      // days otherwise — a deactivated or demoted user's still-valid cookie
+      // would keep authorizing this action directly, bypassing the layout's
+      // isActive check (which a page render performs but a raw POST skips).
+      const user = await getUser(session.userId)
+      if (!user || !user.isActive) {
+        return actionError("Your session has expired. Please sign in again.")
+      }
+      const currentSession: SessionPayload = { ...session, role: user.role }
+
+      if (permission && !hasPermission(currentSession.role, permission)) {
         throw new AuthorizationError()
       }
 
@@ -146,7 +157,7 @@ export function defineAction<TInput, TOutput>({
         input = parsed.data
       }
 
-      const data = await handler(input, { session })
+      const data = await handler(input, { session: currentSession })
       return actionOk(data)
     } catch (error) {
       // redirect(), notFound() and friends work by throwing — let them through.
@@ -181,6 +192,11 @@ export async function requirePermission(
 ): Promise<SessionPayload> {
   const session = await getSession()
   if (!session) throw new AuthorizationError("Not signed in")
-  if (!hasPermission(session.role, permission)) throw new AuthorizationError()
-  return session
+
+  const user = await getUser(session.userId)
+  if (!user || !user.isActive) throw new AuthorizationError("Not signed in")
+  const currentSession: SessionPayload = { ...session, role: user.role }
+
+  if (!hasPermission(currentSession.role, permission)) throw new AuthorizationError()
+  return currentSession
 }

@@ -92,9 +92,14 @@ export function useCrudForm<TValues extends FieldValues, TOutput = unknown>({
   const onSubmit = React.useMemo(
     () =>
       form.handleSubmit(async (values) => {
-        // Errors are surfaced as toasts/field errors by useActionMutation;
-        // swallowing here stops an unhandled rejection in the console.
-        await mutateAsync(values as TValues).catch(() => {})
+        // Errors from a failed action are surfaced as toasts/field errors by
+        // useActionMutation; catching here stops an unhandled rejection for
+        // those. But an error thrown inside a caller's onSuccess/invalidate
+        // rejects this same promise with nothing else to report it, so log
+        // it rather than swallowing it outright.
+        await mutateAsync(values as TValues).catch((error) => {
+          console.error("useCrudForm: mutation follow-up failed", error)
+        })
       }),
     [form, mutateAsync]
   )

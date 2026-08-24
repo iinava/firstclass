@@ -171,7 +171,7 @@ export const expenses = pgTable(
       onDelete: "set null",
     }),
     vehicleId: uuid("vehicle_id").references(() => vehicles.id),
-    categoryId: uuid("category_id"),
+    categoryId: uuid("category_id").references(() => expenseCategories.id),
     description: text("description").notNull(),
     amount: money("amount").notNull(),
     spentAt: date("spent_at").notNull(),

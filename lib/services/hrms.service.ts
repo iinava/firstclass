@@ -1,6 +1,20 @@
 import "server-only"
-import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm"
 import { db } from "@/db/drizzle"
+import { ActionFailure } from "@/lib/action"
 import {
   attendance,
   employees,
@@ -308,6 +322,24 @@ export async function listLeaves(
 }
 
 export async function createLeave(values: typeof leaveRequests.$inferInsert) {
+  const overlapping = await db
+    .select({ id: leaveRequests.id })
+    .from(leaveRequests)
+    .where(
+      and(
+        eq(leaveRequests.employeeId, values.employeeId),
+        inArray(leaveRequests.status, ["pending", "approved"]),
+        lte(leaveRequests.fromDate, values.toDate),
+        gte(leaveRequests.toDate, values.fromDate)
+      )
+    )
+    .limit(1)
+  if (overlapping.length) {
+    throw new ActionFailure(
+      "This employee already has a leave request covering these dates"
+    )
+  }
+
   const [row] = await db.insert(leaveRequests).values(values).returning()
   return row
 }
@@ -321,5 +353,44 @@ export async function decideLeave(
     .set(values)
     .where(eq(leaveRequests.id, id))
     .returning()
-  return row ?? null
+  if (!row) return null
+
+  if (row.status === "approved") {
+    await markLeaveAttendance(row)
+  }
+
+  return row
+}
+
+/** "2026-08-01" .. "2026-08-03" -> each date string in between, inclusive. */
+function datesInRange(from: string, to: string): string[] {
+  const dates: string[] = []
+  let cursor = new Date(`${from}T00:00:00.000Z`)
+  const end = new Date(`${to}T00:00:00.000Z`)
+  while (cursor <= end) {
+    dates.push(cursor.toISOString().slice(0, 10))
+    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000)
+  }
+  return dates
+}
+
+/**
+ * Stamps the attendance register for an approved leave, so payroll (which only
+ * reads attendance) knows those days were leave rather than ordinary present
+ * days — and whether they're paid or unpaid.
+ */
+async function markLeaveAttendance(leave: LeaveRequest): Promise<void> {
+  const status = leave.type === "unpaid" ? "leave_unpaid" : "leave"
+  for (const date of datesInRange(leave.fromDate, leave.toDate)) {
+    await upsertAttendance({
+      employeeId: leave.employeeId,
+      date,
+      status,
+      checkIn: null,
+      checkOut: null,
+      workedMinutes: null,
+      notes: null,
+      markedBy: leave.decidedBy,
+    })
+  }
 }

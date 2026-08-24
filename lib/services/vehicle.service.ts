@@ -1,6 +1,6 @@
 import "server-only"
 import { and, asc, count, desc, eq, ilike, isNull, ne, or, sql } from "drizzle-orm"
-import { db } from "@/db/drizzle"
+import { db, txDb, type Tx } from "@/db/drizzle"
 import { bookings } from "@/db/schemas/booking.schema"
 import { suppliers } from "@/db/schemas/supplier.schema"
 import { tripCostItems } from "@/db/schemas/trip-cost.schema"
@@ -204,8 +204,30 @@ export async function updateDriver(
   return row ?? null
 }
 
-export async function softDeleteDriver(id: string): Promise<void> {
-  await db.update(drivers).set({ deletedAt: new Date() }).where(eq(drivers.id, id))
+/**
+ * Soft delete, refused when the driver is referenced by a trip assignment —
+ * mirrors softDeleteVehicle so trip history never points at a vanished driver.
+ */
+export async function softDeleteDriver(
+  id: string
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const [{ value: assigned }] = await db
+    .select({ value: count() })
+    .from(vehicleAssignments)
+    .where(eq(vehicleAssignments.driverId, id))
+
+  if (assigned > 0) {
+    return {
+      ok: false,
+      reason: `This driver has ${assigned} trip assignment${assigned === 1 ? "" : "s"}. Mark it inactive instead.`,
+    }
+  }
+
+  await db
+    .update(drivers)
+    .set({ deletedAt: new Date() })
+    .where(eq(drivers.id, id))
+  return { ok: true }
 }
 
 // --------------------------------------------------------------- assignments
@@ -225,9 +247,10 @@ export async function findAssignmentConflict(
   vehicleId: string,
   startDate: string,
   endDate: string,
-  excludeAssignmentId?: string
+  excludeAssignmentId?: string,
+  client: Tx | typeof db = db
 ): Promise<AssignmentConflict | null> {
-  const [row] = await db
+  const [row] = await client
     .select({
       bookingCode: bookings.code,
       startDate: vehicleAssignments.startDate,
@@ -275,10 +298,49 @@ export async function listAssignmentsByBooking(bookingId: string) {
 }
 
 export async function createAssignment(
-  values: typeof vehicleAssignments.$inferInsert
+  values: typeof vehicleAssignments.$inferInsert,
+  client: Tx | typeof db = db
 ): Promise<VehicleAssignment> {
-  const [row] = await db.insert(vehicleAssignments).values(values).returning()
+  const [row] = await client.insert(vehicleAssignments).values(values).returning()
   return row
+}
+
+/**
+ * Locks the vehicle's row for the lifetime of the transaction so two
+ * concurrent assignVehicle calls for the same vehicle serialize instead of
+ * both passing findAssignmentConflict before either has committed.
+ */
+async function lockVehicle(tx: Tx, vehicleId: string): Promise<void> {
+  await tx.select({ id: vehicles.id }).from(vehicles).where(eq(vehicles.id, vehicleId)).for("update")
+}
+
+/**
+ * Transaction-wrapped assignVehicle: locks the vehicle row, re-checks for a
+ * date-range conflict, then inserts — closes the double-booking race where
+ * two concurrent requests both pass the conflict check before either commits.
+ */
+export async function assignVehicleAtomic(
+  values: typeof vehicleAssignments.$inferInsert & {
+    vehicleId: string
+    startDate: string
+    endDate: string
+  }
+): Promise<{ ok: true; assignment: VehicleAssignment } | { ok: false; conflict: AssignmentConflict }> {
+  return txDb.transaction(async (tx) => {
+    await lockVehicle(tx, values.vehicleId)
+
+    const conflict = await findAssignmentConflict(
+      values.vehicleId,
+      values.startDate,
+      values.endDate,
+      undefined,
+      tx
+    )
+    if (conflict) return { ok: false, conflict }
+
+    const assignment = await createAssignment(values, tx)
+    return { ok: true, assignment }
+  })
 }
 
 export async function updateAssignment(
@@ -293,6 +355,10 @@ export async function updateAssignment(
   return row ?? null
 }
 
-export async function deleteAssignment(id: string): Promise<void> {
-  await db.delete(vehicleAssignments).where(eq(vehicleAssignments.id, id))
+export async function deleteAssignment(id: string): Promise<VehicleAssignment | null> {
+  const [row] = await db
+    .delete(vehicleAssignments)
+    .where(eq(vehicleAssignments.id, id))
+    .returning()
+  return row ?? null
 }

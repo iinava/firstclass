@@ -1,6 +1,6 @@
 import "server-only"
 import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm"
-import { db } from "@/db/drizzle"
+import { db, type Tx } from "@/db/drizzle"
 import { bookingPax, bookings, type Booking } from "@/db/schemas/booking.schema"
 import { customers } from "@/db/schemas/customer.schema"
 import { expenses, receipts } from "@/db/schemas/accounts.schema"
@@ -8,6 +8,7 @@ import { suppliers } from "@/db/schemas/supplier.schema"
 import { tripCostItems, type TripCostItem } from "@/db/schemas/trip-cost.schema"
 import { users } from "@/db/schemas/user.schema"
 import { vehicles } from "@/db/schemas/vehicle.schema"
+import { marginPercent, profit } from "@/lib/money"
 import type { PaginatedResult } from "@/validations/common.validation"
 import type { BookingListParams } from "@/validations/booking.validation"
 
@@ -158,8 +159,11 @@ export async function getBooking(id: string): Promise<BookingListRow | null> {
   return row ? decorate(row) : null
 }
 
-export async function getBookingRaw(id: string): Promise<Booking | null> {
-  const [row] = await db
+export async function getBookingRaw(
+  id: string,
+  client: Tx | typeof db = db
+): Promise<Booking | null> {
+  const [row] = await client
     .select()
     .from(bookings)
     .where(and(eq(bookings.id, id), alive))
@@ -295,9 +299,9 @@ export async function softDeleteTripCost(id: string): Promise<void> {
 }
 
 /** The per-trip P&L panel: revenue, cost by category, received, balance. */
-export async function getBookingLedger(bookingId: string) {
+export async function getBookingLedger(bookingId: string, client: Tx | typeof db = db) {
   const [costByCategory, [totals], [receiptRow]] = await Promise.all([
-    db
+    client
       .select({
         category: tripCostItems.category,
         cost: sql<number>`coalesce(sum(${tripCostItems.costAmount}), 0)::bigint`,
@@ -313,7 +317,7 @@ export async function getBookingLedger(bookingId: string) {
       )
       .groupBy(tripCostItems.category),
 
-    db
+    client
       .select({
         costTotal: sql<number>`coalesce(sum(${tripCostItems.costAmount}), 0)::bigint`,
         paidToSuppliers: sql<number>`coalesce(sum(${tripCostItems.paidAmount}), 0)::bigint`,
@@ -327,7 +331,7 @@ export async function getBookingLedger(bookingId: string) {
         )
       ),
 
-    db
+    client
       .select({
         received: sql<number>`coalesce(sum(${receipts.amount}), 0)::bigint`,
         advance: sql<number>`coalesce(sum(${receipts.amount}) filter (where ${receipts.isAdvance}), 0)::bigint`,
@@ -336,14 +340,14 @@ export async function getBookingLedger(bookingId: string) {
       .where(and(eq(receipts.bookingId, bookingId), isNull(receipts.voidedAt))),
   ])
 
-  const [expenseRow] = await db
+  const [expenseRow] = await client
     .select({
       total: sql<number>`coalesce(sum(${expenses.amount}), 0)::bigint`,
     })
     .from(expenses)
     .where(and(eq(expenses.bookingId, bookingId), isNull(expenses.deletedAt)))
 
-  const booking = await getBookingRaw(bookingId)
+  const booking = await getBookingRaw(bookingId, client)
   const revenue = Number(booking?.grandTotal ?? 0)
   const supplierCost = Number(totals?.costTotal ?? 0)
   const directExpense = Number(expenseRow?.total ?? 0)
@@ -355,8 +359,8 @@ export async function getBookingLedger(bookingId: string) {
     supplierCost,
     directExpense,
     cost,
-    profit: revenue - cost,
-    margin: revenue > 0 ? ((revenue - cost) / revenue) * 100 : 0,
+    profit: profit(revenue, cost),
+    margin: marginPercent(revenue, cost),
     received,
     advance: Number(receiptRow?.advance ?? 0),
     balance: revenue - received,
@@ -385,6 +389,10 @@ export async function createPax(values: typeof bookingPax.$inferInsert) {
   return row
 }
 
-export async function deletePax(id: string): Promise<void> {
-  await db.delete(bookingPax).where(eq(bookingPax.id, id))
+export async function deletePax(id: string) {
+  const [row] = await db
+    .delete(bookingPax)
+    .where(eq(bookingPax.id, id))
+    .returning()
+  return row ?? null
 }

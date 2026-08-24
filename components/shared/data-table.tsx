@@ -88,6 +88,19 @@ export function DataTable<T>({
   const showSkeleton = isLoading && !rows?.length
   const showEmpty = !isLoading && rows?.length === 0
 
+  // Deleting the last row on the last page leaves `page` pointing past the
+  // new `pageCount` — step back rather than showing the empty state for a
+  // page that simply no longer exists.
+  const paginationPage = pagination?.page
+  const paginationPageCount = pagination?.pageCount
+  const onPageChange = pagination?.onPageChange
+  React.useEffect(() => {
+    if (isLoading || paginationPageCount === undefined || paginationPage === undefined) return
+    if (paginationPageCount >= 1 && paginationPage > paginationPageCount) {
+      onPageChange?.(paginationPageCount)
+    }
+  }, [isLoading, paginationPage, paginationPageCount, onPageChange])
+
   // One horizontal rhythm for every cell in every table, so columns line up
   // with the card edge instead of hugging it.
   const cellX = "px-4 first:pl-5 last:pr-5"

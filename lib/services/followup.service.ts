@@ -17,6 +17,7 @@ import { db } from "@/db/drizzle"
 import { customers } from "@/db/schemas/customer.schema"
 import { leadFollowups, leads, type LeadFollowup } from "@/db/schemas/lead.schema"
 import { users } from "@/db/schemas/user.schema"
+import { sweepMissedFollowups } from "@/lib/services/lead.service"
 import type { PaginatedResult } from "@/validations/common.validation"
 import type { FollowupQueueParams } from "@/validations/lead.validation"
 
@@ -77,7 +78,7 @@ function bucketFilter(bucket: FollowupQueueParams["bucket"]) {
     case "overdue":
       return lt(leadFollowups.dueAt, startOfToday)
     case "today":
-      return lte(leadFollowups.dueAt, endOfToday)
+      return and(gte(leadFollowups.dueAt, startOfToday), lte(leadFollowups.dueAt, endOfToday))
     case "week":
       return and(gte(leadFollowups.dueAt, startOfToday), lte(leadFollowups.dueAt, endOfWeek))
     case "upcoming":
@@ -92,6 +93,8 @@ export async function listFollowups(
   params: FollowupQueueParams,
   restrictToUserId?: string | null
 ): Promise<PaginatedResult<FollowupRow>> {
+  await sweepMissedFollowups()
+
   const { page, pageSize, bucket, assignedTo, status, search } = params
 
   const filters = [isNull(leads.deletedAt)]
@@ -146,6 +149,8 @@ export async function listFollowups(
 
 /** Badge counts on the queue tabs. */
 export async function getFollowupCounts(restrictToUserId?: string | null) {
+  await sweepMissedFollowups()
+
   const startOfToday = new Date()
   startOfToday.setHours(0, 0, 0, 0)
   const endOfToday = new Date()
@@ -159,7 +164,7 @@ export async function getFollowupCounts(restrictToUserId?: string | null) {
   const [row] = await db
     .select({
       overdue: sql<number>`count(*) filter (where ${leadFollowups.dueAt} < ${startOfToday})::int`,
-      today: sql<number>`count(*) filter (where ${leadFollowups.dueAt} <= ${endOfToday})::int`,
+      today: sql<number>`count(*) filter (where ${leadFollowups.dueAt} >= ${startOfToday} and ${leadFollowups.dueAt} <= ${endOfToday})::int`,
       week: sql<number>`count(*) filter (where ${leadFollowups.dueAt} >= ${startOfToday} and ${leadFollowups.dueAt} <= ${endOfWeek})::int`,
       upcoming: sql<number>`count(*) filter (where ${leadFollowups.dueAt} >= ${startOfToday})::int`,
       all: sql<number>`count(*)::int`,

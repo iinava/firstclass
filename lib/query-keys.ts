@@ -40,6 +40,7 @@ export const qk = {
     detail: (id: string) => ["bookings", "detail", id] as const,
     costs: (id: string) => ["bookings", "costs", id] as const,
     ledger: (id: string) => ["bookings", "ledger", id] as const,
+    pax: (id: string) => ["bookings", "pax", id] as const,
   },
   suppliers: {
     all: ["suppliers"] as const,

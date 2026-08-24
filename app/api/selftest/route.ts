@@ -126,12 +126,17 @@ const iso = (offsetDays = 0) => {
 export async function GET(request: Request) {
   // Doubly gated: absent from any production build, and it still writes to the
   // real database in development, so a stray browser tab must not trigger it.
+  // A misconfigured NODE_ENV alone must not be enough to run this against a
+  // real database, so it also requires the most privileged role.
   if (process.env.NODE_ENV === "production") {
     return new NextResponse("Not found", { status: 404 })
   }
   const caller = await getSession()
   if (!caller) {
     return NextResponse.json({ error: "Sign in first" }, { status: 401 })
+  }
+  if (caller.role !== "superadmin") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
   const results: Row[] = []

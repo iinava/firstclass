@@ -57,6 +57,55 @@ const EXTENSION_FOR_MIME: Record<string, string> = {
 /** Thrown for problems the user can fix — surfaced verbatim in the UI. */
 export class UploadValidationError extends Error {}
 
+/**
+ * Magic-byte check for each allowed extension, so a forged multipart upload
+ * (real bytes don't match the claimed filename/MIME type) is rejected before
+ * it's written to disk. Defense in depth on top of the extension allow-list —
+ * the serving route already forces Content-Type + nosniff, so this isn't
+ * closing an active hole, just narrowing what can land on disk at all.
+ */
+function matchesFileSignature(ext: string, header: Buffer): boolean {
+  switch (ext) {
+    case ".png":
+      return (
+        header.length >= 4 &&
+        header[0] === 0x89 &&
+        header[1] === 0x50 &&
+        header[2] === 0x4e &&
+        header[3] === 0x47
+      )
+    case ".jpg":
+    case ".jpeg":
+      return header.length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff
+    case ".webp":
+      // Only the two anchor sequences, not the full RIFF/VP8 container.
+      return (
+        header.length >= 12 &&
+        header.toString("ascii", 0, 4) === "RIFF" &&
+        header.toString("ascii", 8, 12) === "WEBP"
+      )
+    case ".gif":
+      return (
+        header.length >= 6 &&
+        (header.toString("ascii", 0, 6) === "GIF87a" ||
+          header.toString("ascii", 0, 6) === "GIF89a")
+      )
+    case ".bmp":
+      return header.length >= 2 && header.toString("ascii", 0, 2) === "BM"
+    case ".pdf":
+      return header.length >= 4 && header.toString("ascii", 0, 4) === "%PDF"
+    case ".avif":
+      // ISO base media "ftyp" box with an avif/avis major brand.
+      return (
+        header.length >= 12 &&
+        header.toString("ascii", 4, 8) === "ftyp" &&
+        header.toString("ascii", 8, 11) === "avi"
+      )
+    default:
+      return false
+  }
+}
+
 export class LocalStorageService implements StorageProvider {
   /** Absolute directory holding this project's uploads. */
   private readonly rootDir: string
@@ -78,7 +127,7 @@ export class LocalStorageService implements StorageProvider {
 
   async upload(file: File, folder: UploadFolder): Promise<string> {
     const safeFolder = this.normalizeRelative(folder)
-    const ext = this.resolveExtension(file)
+    const ext = await this.resolveExtension(file)
 
     if (file.size === 0) {
       throw new UploadValidationError("That file is empty.")
@@ -164,19 +213,32 @@ export class LocalStorageService implements StorageProvider {
    * type. Otherwise the MIME type decides, and if that isn't allowed either the
    * upload is refused rather than written to disk.
    */
-  private resolveExtension(file: File): string {
+  private async resolveExtension(file: File): Promise<string> {
     const mime = (file.type || "").toLowerCase().split(";")[0].trim()
     const fromName = path.extname(file.name || "").toLowerCase()
 
     const allowedForExt = ALLOWED_TYPES[fromName]
-    if (allowedForExt && (!mime || allowedForExt.includes(mime))) return fromName
+    const ext =
+      allowedForExt && (!mime || allowedForExt.includes(mime))
+        ? fromName
+        : EXTENSION_FOR_MIME[mime]
 
-    const fromMime = EXTENSION_FOR_MIME[mime]
-    if (fromMime) return fromMime
+    if (!ext) {
+      throw new UploadValidationError(
+        "Unsupported file type. Please upload a PNG, JPEG, WebP, GIF, AVIF, BMP or PDF file."
+      )
+    }
 
-    throw new UploadValidationError(
-      "Unsupported file type. Please upload a PNG, JPEG, WebP, GIF, AVIF, BMP or PDF file."
-    )
+    // The filename/MIME type only decide *which* signature to check against —
+    // the bytes themselves have the final say.
+    const header = Buffer.from(await file.slice(0, 16).arrayBuffer())
+    if (!matchesFileSignature(ext, header)) {
+      throw new UploadValidationError(
+        "That file's contents don't match its claimed type."
+      )
+    }
+
+    return ext
   }
 
   /** Defend against `..` traversal escaping the uploads root. */

@@ -9,6 +9,7 @@ import { suppliers } from "@/db/schemas/supplier.schema"
 import { tripCostItems } from "@/db/schemas/trip-cost.schema"
 import { users } from "@/db/schemas/user.schema"
 import { vehicles } from "@/db/schemas/vehicle.schema"
+import { marginPercent, profit } from "@/lib/money"
 import type { ReportParams } from "@/validations/accounts.validation"
 
 /**
@@ -77,8 +78,8 @@ export async function getProfitLoss(params: ReportParams) {
     supplierCost,
     directExpense,
     cost,
-    profit: revenue - cost,
-    margin: revenue > 0 ? ((revenue - cost) / revenue) * 100 : 0,
+    profit: profit(revenue, cost),
+    margin: marginPercent(revenue, cost),
     trips: revenueRow?.trips ?? 0,
     pax: revenueRow?.pax ?? 0,
     collected: Number(receiptRow?.received ?? 0),
@@ -134,8 +135,8 @@ export async function getRevenueByTrip(params: ReportParams) {
       revenue,
       cost,
       received: Number(r.received),
-      profit: revenue - cost,
-      margin: revenue > 0 ? ((revenue - cost) / revenue) * 100 : 0,
+      profit: profit(revenue, cost),
+      margin: marginPercent(revenue, cost),
     }
   })
 }
@@ -363,7 +364,7 @@ export async function getMonthlyTrend(params: ReportParams) {
     month: r.month,
     revenue: Number(r.revenue),
     cost: Number(r.cost),
-    profit: Number(r.revenue) - Number(r.cost),
+    profit: profit(Number(r.revenue), Number(r.cost)),
     trips: r.trips,
   }))
 }

@@ -15,8 +15,12 @@ export function toPaise(rupees: number | string | null | undefined): number {
   if (rupees === null || rupees === undefined || rupees === "") return 0
   const n = typeof rupees === "string" ? Number(rupees.replace(/,/g, "")) : rupees
   if (!Number.isFinite(n)) return 0
-  // Round rather than truncate so 12.005 -> 1201, not 1200.
-  return Math.round(n * 100)
+  // Round rather than truncate so 12.005 -> 1201, not 1200. `n * 100` alone
+  // suffers from float imprecision — e.g. 1.005 * 100 is 100.49999999999999
+  // in JS floating point, which Math.round would wrongly floor to 100 instead
+  // of 101. Routing the product through toFixed(2) first snaps it back onto
+  // the nearest cent before rounding.
+  return Math.round(Number((n * 100).toFixed(2)))
 }
 
 /** Convert paise into a rupee number, for form fields and charts. */
@@ -63,8 +67,8 @@ export function formatMoneyCompact(paise: number | null | undefined): string {
 }
 
 /**
- * GST is stored as basis points x 10 (5% -> 500) so the rate is always an
- * integer. Tax is computed on the post-discount amount.
+ * GST is stored as basis points (5% -> 500 bps, i.e. percent x 100) so the
+ * rate is always an integer. Tax is computed on the post-discount amount.
  */
 export function calculateTax(taxableAmountPaise: number, taxRateBps: number): number {
   return Math.round((taxableAmountPaise * taxRateBps) / 10_000)
@@ -118,6 +122,8 @@ export function profit(revenue: number, cost: number): number {
 }
 
 export function marginPercent(revenue: number, cost: number): number {
-  if (!revenue) return 0
+  // Zero or negative revenue has no meaningful margin percentage — and
+  // dividing by a negative revenue would flip the sign of the result.
+  if (revenue <= 0) return 0
   return ((revenue - cost) / revenue) * 100
 }

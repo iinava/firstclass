@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { ActionFailure, defineAction } from "@/lib/action"
 import { diffChanges, recordAudit } from "@/lib/audit"
-import { generateShareToken, nextPackageCode, nextQuoteCode } from "@/lib/codes"
+import { generateShareToken, nextPackageCode, nextQuoteCode, shareTokenExpiry } from "@/lib/codes"
 import * as service from "@/lib/services/itinerary.service"
 import { storage } from "@/lib/storage"
+import { MAX_IMAGES_PER_ITINERARY } from "@/lib/storage/types"
 import { uuidSchema } from "@/validations/common.validation"
 import {
   CloneItinerarySchema,
@@ -70,6 +71,7 @@ export const createItinerary = defineAction({
       ...input,
       code,
       shareToken: generateShareToken(),
+      shareTokenExpiresAt: shareTokenExpiry(),
       leadId: input.leadId ?? null,
       customerId: input.customerId ?? null,
       pricePerAdult: input.pricePerAdult ?? null,
@@ -188,6 +190,7 @@ export const regenerateShareToken = defineAction({
   handler: async ({ id }, { session }) => {
     const itinerary = await service.updateItinerary(id, {
       shareToken: generateShareToken(),
+      shareTokenExpiresAt: shareTokenExpiry(),
     })
     if (!itinerary) throw new ActionFailure("Itinerary not found")
 
@@ -234,6 +237,7 @@ export const cloneItinerary = defineAction({
     const clone = await service.cloneItinerary(input.sourceId, {
       code,
       shareToken: generateShareToken(),
+      shareTokenExpiresAt: shareTokenExpiry(),
       leadId: input.leadId ?? null,
       customerId: input.customerId ?? null,
       title: input.title ?? undefined,
@@ -284,7 +288,8 @@ export const deleteDay = defineAction({
   permission: "itinerary:update",
   schema: DeleteItineraryDaySchema,
   handler: async ({ id }) => {
-    await service.deleteDay(id)
+    const day = await service.deleteDay(id)
+    if (day) revalidatePath(`/admin/packages/${day.itineraryId}`)
     return { id }
   },
 })
@@ -296,6 +301,13 @@ export const addImage = defineAction({
   permission: "itinerary:update",
   schema: ItineraryImageSchema,
   handler: async (input) => {
+    const existing = await service.countImages(input.itineraryId)
+    if (existing >= MAX_IMAGES_PER_ITINERARY) {
+      throw new ActionFailure(
+        `An itinerary can hold at most ${MAX_IMAGES_PER_ITINERARY} photos.`
+      )
+    }
+
     const image = await service.addImage({
       ...input,
       dayId: input.dayId ?? null,

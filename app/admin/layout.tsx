@@ -16,7 +16,7 @@ export default async function AdminLayout({
   // re-checked against the database — otherwise a deactivated or demoted user
   // keeps their old permissions until the token expires.
   const user = await getUser(session.userId)
-  if (!user || !user.isActive) {
+  if (!user || !user.isActive || user.role !== session.role) {
     // Via /logout, not /login: the cookie has to be cleared in a Route Handler,
     // and the proxy would otherwise bounce a still-valid JWT straight back here.
     redirect("/logout?reason=deactivated")

@@ -275,9 +275,12 @@ export function ShareDonut({
       : sorted
 
   const total = slices.reduce((sum, slice) => sum + slice.value, 0)
+  // Keyed by label+index, not label alone — two independently-computed
+  // slices (e.g. two "Other" buckets) can share a label, and a plain-label
+  // key would collide in both the config map and React's reconciliation.
   const config: ChartConfig = Object.fromEntries(
     slices.map((slice, index) => [
-      slice.label,
+      `${slice.label}-${index}`,
       { label: slice.label, color: SERIES[index] },
     ])
   )
@@ -313,7 +316,7 @@ export function ShareDonut({
             strokeWidth={2}
           >
             {slices.map((slice, index) => (
-              <Cell key={slice.label} fill={SERIES[index]} />
+              <Cell key={`${slice.label}-${index}`} fill={SERIES[index]} />
             ))}
           </Pie>
         </PieChart>
@@ -323,7 +326,7 @@ export function ShareDonut({
           identity or the value on its own. */}
       <ul className="flex w-full flex-col gap-1.5 sm:w-1/2">
         {slices.map((slice, index) => (
-          <li key={slice.label} className="flex items-center gap-2 text-sm">
+          <li key={`${slice.label}-${index}`} className="flex items-center gap-2 text-sm">
             <span
               aria-hidden="true"
               className="size-2.5 shrink-0 rounded-[3px]"
@@ -368,7 +371,7 @@ export function ShareBar({
       <div className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full">
         {slices.map((slice, index) => (
           <span
-            key={slice.label}
+            key={`${slice.label}-${index}`}
             title={`${slice.label}: ${formatMoneyShort(slice.value)}`}
             style={{
               background: SERIES[index],
@@ -379,7 +382,7 @@ export function ShareBar({
       </div>
       <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
         {slices.map((slice, index) => (
-          <li key={slice.label} className="flex items-center gap-1.5 text-xs">
+          <li key={`${slice.label}-${index}`} className="flex items-center gap-1.5 text-xs">
             <span
               aria-hidden="true"
               className="size-2.5 shrink-0 rounded-[3px]"

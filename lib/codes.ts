@@ -127,3 +127,8 @@ export function generateShareToken(): string {
   crypto.getRandomValues(bytes)
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
 }
+
+/** Every (re)generated share token gets 90 days before it stops resolving. */
+export function shareTokenExpiry(): Date {
+  return new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+}

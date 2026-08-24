@@ -164,7 +164,9 @@ export async function upsertCustomerByPhone(
       createdBy: userId,
     })
     // Guards the race where two staff add the same caller simultaneously.
-    .onConflictDoNothing({ target: customers.phone })
+    // `where` must match the partial unique index's predicate for Postgres
+    // to pick it as the conflict arbiter.
+    .onConflictDoNothing({ target: customers.phone, where: alive })
     .returning()
 
   if (row) return { customer: row, created: true }
@@ -201,6 +203,24 @@ export async function softDeleteCustomer(id: string): Promise<
     return {
       ok: false,
       reason: `This customer has ${bookingCount} booking${bookingCount === 1 ? "" : "s"} and cannot be deleted`,
+    }
+  }
+
+  const [{ value: openLeadCount }] = await db
+    .select({ value: count() })
+    .from(leads)
+    .where(
+      and(
+        eq(leads.customerId, id),
+        isNull(leads.deletedAt),
+        sql`${leads.status} not in ('won', 'lost')`
+      )
+    )
+
+  if (openLeadCount > 0) {
+    return {
+      ok: false,
+      reason: `This customer has ${openLeadCount} open lead${openLeadCount === 1 ? "" : "s"} and cannot be deleted`,
     }
   }
 

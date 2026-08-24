@@ -112,8 +112,8 @@ export async function listLeads(
   if (priority) filters.push(eq(leads.priority, priority))
   if (source) filters.push(eq(leads.source, source))
   if (assignedTo) filters.push(eq(leads.assignedTo, assignedTo))
-  if (from) filters.push(gte(leads.createdAt, new Date(from)))
-  if (to) filters.push(lte(leads.createdAt, new Date(`${to}T23:59:59`)))
+  if (from) filters.push(gte(leads.createdAt, new Date(`${from}T00:00:00.000Z`)))
+  if (to) filters.push(lte(leads.createdAt, new Date(`${to}T23:59:59.999Z`)))
   if (restrictToUserId) filters.push(eq(leads.assignedTo, restrictToUserId))
 
   const where = and(...filters)

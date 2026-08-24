@@ -150,7 +150,8 @@ export const deleteDriver = defineAction({
   permission: "vehicle:delete",
   schema: DeleteDriverSchema,
   handler: async ({ id }) => {
-    await service.softDeleteDriver(id)
+    const result = await service.softDeleteDriver(id)
+    if (!result.ok) throw new ActionFailure(result.reason)
     revalidatePath("/admin/fleet")
     return { id }
   },
@@ -175,24 +176,20 @@ export const assignVehicle = defineAction({
   permission: "vehicle:update",
   schema: AssignVehicleSchema,
   handler: async (input, { session }) => {
-    const conflict = await service.findAssignmentConflict(
-      input.vehicleId,
-      input.startDate,
-      input.endDate
-    )
-    if (conflict) {
-      throw new ActionFailure(
-        `This vehicle is already assigned to ${conflict.bookingCode} from ${conflict.startDate} to ${conflict.endDate}`,
-        { vehicleId: ["Vehicle is not available for these dates"] }
-      )
-    }
-
-    const assignment = await service.createAssignment({
+    const result = await service.assignVehicleAtomic({
       ...input,
       driverId: input.driverId ?? null,
       startOdometer: input.startOdometer ?? null,
       createdBy: session.userId,
     })
+    if (!result.ok) {
+      const { conflict } = result
+      throw new ActionFailure(
+        `This vehicle is already assigned to ${conflict.bookingCode} from ${conflict.startDate} to ${conflict.endDate}`,
+        { vehicleId: ["Vehicle is not available for these dates"] }
+      )
+    }
+    const { assignment } = result
 
     await recordAudit({
       entity: "vehicle_assignments",
@@ -229,7 +226,8 @@ export const removeAssignment = defineAction({
   permission: "vehicle:update",
   schema: DeleteAssignmentSchema,
   handler: async ({ id }) => {
-    await service.deleteAssignment(id)
+    const assignment = await service.deleteAssignment(id)
+    if (assignment) revalidatePath(`/admin/trips/${assignment.bookingId}`)
     return { id }
   },
 })

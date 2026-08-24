@@ -139,19 +139,44 @@ export async function getItineraryDetail(id: string) {
 }
 
 /**
- * Public lookup by share token. Only enabled, non-draft itineraries resolve —
- * a leaked draft link should not expose unfinished pricing.
+ * Public lookup by share token. Only enabled, non-draft, unexpired itineraries
+ * resolve — a leaked draft link should not expose unfinished pricing, and a
+ * link nobody revoked should still stop working eventually.
+ *
+ * Selects an explicit column list rather than the whole row, same reasoning
+ * as listCatalog: this feeds the public /i/[token] page, so internal fields
+ * (leadId, customerId, estimatedCost, viewCount, shareToken itself, ...) must
+ * never leak into it by accident when the schema grows.
  */
 export async function getItineraryByShareToken(token: string) {
   const [itinerary] = await db
-    .select()
+    .select({
+      id: itineraries.id,
+      code: itineraries.code,
+      kind: itineraries.kind,
+      title: itineraries.title,
+      destination: itineraries.destination,
+      durationDays: itineraries.durationDays,
+      durationNights: itineraries.durationNights,
+      summary: itineraries.summary,
+      coverImageUrl: itineraries.coverImageUrl,
+      pricingMode: itineraries.pricingMode,
+      pricePerAdult: itineraries.pricePerAdult,
+      pricePerChild: itineraries.pricePerChild,
+      fixedPrice: itineraries.fixedPrice,
+      inclusions: itineraries.inclusions,
+      exclusions: itineraries.exclusions,
+      termsAndConditions: itineraries.termsAndConditions,
+      validUntil: itineraries.validUntil,
+    })
     .from(itineraries)
     .where(
       and(
         eq(itineraries.shareToken, token),
         eq(itineraries.isShareEnabled, true),
         alive,
-        sql`${itineraries.status} <> 'draft'`
+        sql`${itineraries.status} <> 'draft'`,
+        sql`(${itineraries.shareTokenExpiresAt} is null or ${itineraries.shareTokenExpiresAt} > now())`
       )
     )
     .limit(1)
@@ -410,11 +435,20 @@ export async function updateDay(
   return row ?? null
 }
 
-export async function deleteDay(id: string): Promise<void> {
-  await db.delete(itineraryDays).where(eq(itineraryDays.id, id))
+export async function deleteDay(id: string): Promise<ItineraryDay | null> {
+  const [row] = await db.delete(itineraryDays).where(eq(itineraryDays.id, id)).returning()
+  return row ?? null
 }
 
 // -------------------------------------------------------------------- images
+
+export async function countImages(itineraryId: string): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(itineraryImages)
+    .where(eq(itineraryImages.itineraryId, itineraryId))
+  return row?.value ?? 0
+}
 
 export async function addImage(values: typeof itineraryImages.$inferInsert) {
   const [row] = await db.insert(itineraryImages).values(values).returning()

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { ActionFailure, defineAction } from "@/lib/action"
+import { ActionFailure, AuthorizationError, defineAction } from "@/lib/action"
 import { diffChanges, recordAudit } from "@/lib/audit"
 import { nextBookingCode } from "@/lib/codes"
 import { computeTotals, percentToBps } from "@/lib/money"
@@ -27,6 +27,22 @@ import type { SessionPayload } from "@/types/auth"
 
 function scopeFor(session: SessionPayload): string | null {
   return canViewAll(session.role, "booking") ? null : session.userId
+}
+
+/**
+ * `scopeFor` restricts list views to a sales user's own pipeline, but a
+ * per-record action reached by id has to re-apply the same restriction
+ * itself — otherwise a sales user can act on any booking by id/URL even
+ * though it's filtered out of their own list view.
+ */
+function assertBookingInScope(
+  session: SessionPayload,
+  booking: { assignedTo: string | null }
+): void {
+  const scope = scopeFor(session)
+  if (scope && booking.assignedTo !== scope) {
+    throw new AuthorizationError()
+  }
 }
 
 /**
@@ -73,7 +89,11 @@ export const fetchBooking = defineAction({
   name: "fetchBooking",
   permission: "booking:view",
   schema: z.object({ id: uuidSchema }),
-  handler: async ({ id }) => {
+  handler: async ({ id }, { session }) => {
+    const raw = await service.getBookingRaw(id)
+    if (!raw) throw new ActionFailure("Booking not found")
+    assertBookingInScope(session, raw)
+
     const booking = await service.getBooking(id)
     if (!booking) throw new ActionFailure("Booking not found")
     return booking
@@ -173,6 +193,7 @@ export const updateBooking = defineAction({
     const { id } = input
     const before = await service.getBookingRaw(id)
     if (!before) throw new ActionFailure("Booking not found")
+    assertBookingInScope(session, before)
     if (before.status === "cancelled") {
       throw new ActionFailure("A cancelled booking cannot be edited")
     }
@@ -216,6 +237,7 @@ export const updateBookingStatus = defineAction({
   handler: async ({ id, status }, { session }) => {
     const before = await service.getBookingRaw(id)
     if (!before) throw new ActionFailure("Booking not found")
+    assertBookingInScope(session, before)
     if (before.status === "cancelled") {
       throw new ActionFailure("A cancelled booking cannot change status")
     }
@@ -250,6 +272,7 @@ export const cancelBooking = defineAction({
   handler: async ({ id, cancellationReason, cancellationCharge }, { session }) => {
     const before = await service.getBookingRaw(id)
     if (!before) throw new ActionFailure("Booking not found")
+    assertBookingInScope(session, before)
     if (before.status === "cancelled") {
       throw new ActionFailure("This booking is already cancelled")
     }
@@ -282,6 +305,7 @@ export const deleteBooking = defineAction({
   handler: async ({ id }, { session }) => {
     const before = await service.getBookingRaw(id)
     if (!before) throw new ActionFailure("Booking not found")
+    assertBookingInScope(session, before)
 
     const ledger = await service.getBookingLedger(id)
     if (ledger.received > 0) {
@@ -416,7 +440,8 @@ export const removePax = defineAction({
   permission: "booking:update",
   schema: DeletePaxSchema,
   handler: async ({ id }) => {
-    await service.deletePax(id)
+    const deleted = await service.deletePax(id)
+    if (deleted) revalidatePath(`/admin/trips/${deleted.bookingId}`)
     return { id }
   },
 })

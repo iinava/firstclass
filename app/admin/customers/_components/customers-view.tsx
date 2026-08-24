@@ -143,30 +143,29 @@ export function CustomersView() {
         header: <span className="sr-only">Actions</span>,
         className: "w-10",
         cell: (row) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button variant="ghost" size="icon-sm" />}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <MoreHorizontalIcon className="size-4" />
-              <span className="sr-only">Open actions</span>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => {
-                  setEditing(row)
-                  setFormOpen(true)
-                }}
-              >
-                <PencilIcon className="size-4" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onClick={() => setDeleting(row)}>
-                <Trash2Icon className="size-4" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div onClick={(event) => event.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" />}>
+                <MoreHorizontalIcon className="size-4" />
+                <span className="sr-only">Open actions</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setEditing(row)
+                    setFormOpen(true)
+                  }}
+                >
+                  <PencilIcon className="size-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onClick={() => setDeleting(row)}>
+                  <Trash2Icon className="size-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         ),
       },
     ],
