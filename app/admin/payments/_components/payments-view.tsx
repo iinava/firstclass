@@ -10,6 +10,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import { DateRangeFilter } from "@/components/shared/date-range-filter"
 import { OptionSelect, optionsFrom } from "@/components/shared/option-select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -51,9 +52,11 @@ interface OutstandingRow {
 }
 
 export function PaymentsView() {
-  const { params, setSearch, setFilter, setPage } = useListParams<{ mode: string }>([
-    "mode",
-  ])
+  const { params, setSearch, setFilter, setPage } = useListParams<{
+    mode: string
+    from: string
+    to: string
+  }>(["mode", "from", "to"])
 
   const [searchInput, setSearchInput] = React.useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 350)
@@ -70,8 +73,10 @@ export function PaymentsView() {
       search: params.search || undefined,
       sortDir: params.sortDir,
       mode: (params.mode || undefined) as never,
+      from: params.from || undefined,
+      to: params.to || undefined,
     }),
-    [params.page, params.search, params.sortDir, params.mode]
+    [params.page, params.search, params.sortDir, params.mode, params.from, params.to]
   )
 
   const { data, isLoading, isFetching } = useQuery({
@@ -326,6 +331,16 @@ export function PaymentsView() {
             options={MODE_FILTER_OPTIONS}
             value={params.mode ?? ""}
             onValueChange={(value) => setFilter("mode", value)}
+          />
+
+          <DateRangeFilter
+            from={params.from}
+            to={params.to}
+            onChange={(range) => {
+              setFilter("from", range.from ?? null)
+              setFilter("to", range.to ?? null)
+            }}
+            className="w-full sm:w-auto"
           />
         </div>
 

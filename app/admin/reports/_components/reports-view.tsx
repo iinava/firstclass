@@ -11,9 +11,9 @@ import {
   WalletIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { DateRangeFilter } from "@/components/shared/date-range-filter"
 import { MoneyBarChart, ShareDonut, TrendLineChart } from "@/components/shared/charts"
 import { StatCard } from "@/components/shared/stat-card"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -399,31 +399,15 @@ export function ReportsView() {
   return (
     <div className="flex flex-col gap-4">
       {/* Date window */}
-      <div className="flex flex-wrap items-end gap-2 rounded-xl border bg-card p-4">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="report-from" className="text-xs text-muted-foreground">
-            From
-          </label>
-          <Input
-            id="report-from"
-            type="date"
-            className="w-40"
-            value={params.from ?? ""}
-            onChange={(event) => setFilter("from", event.target.value)}
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="report-to" className="text-xs text-muted-foreground">
-            To
-          </label>
-          <Input
-            id="report-to"
-            type="date"
-            className="w-40"
-            value={params.to ?? ""}
-            onChange={(event) => setFilter("to", event.target.value)}
-          />
-        </div>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-4">
+        <DateRangeFilter
+          from={params.from}
+          to={params.to}
+          onChange={(range) => {
+            setFilter("from", range.from ?? null)
+            setFilter("to", range.to ?? null)
+          }}
+        />
         <p className="ml-auto text-xs text-muted-foreground">
           {pl ? `${formatDate(pl.from)} – ${formatDate(pl.to)}` : "Financial year to date"}
         </p>

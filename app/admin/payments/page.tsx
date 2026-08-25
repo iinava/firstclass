@@ -47,6 +47,8 @@ async function PaymentsLoader({
     search: str("search"),
     sortDir: raw.sortDir === "asc" ? "asc" : "desc",
     mode: str("mode"),
+    from: str("from"),
+    to: str("to"),
   })
 
   const queryClient = getQueryClient()

@@ -53,6 +53,8 @@ async function LeadsLoader({
     priority: str("priority"),
     source: str("source"),
     assignedTo: str("assignedTo"),
+    from: str("from"),
+    to: str("to"),
   })
 
   const scope = canViewAll(session.role, "lead") ? null : session.userId

@@ -18,10 +18,16 @@ import { formatDate, formatNumber, formatRelativeDay } from "@/lib/format"
 import { formatMoneyCompact } from "@/lib/money"
 import { getDashboardSummary } from "@/lib/services/dashboard.service"
 import { getMonthlyTrend } from "@/lib/services/report.service"
+import { ReportParamsSchema } from "@/validations/accounts.validation"
+import { safeListParams } from "@/validations/common.validation"
 import { RevenueTrendCard } from "./_components/revenue-trend-card"
 import { getSession } from "@/lib/session"
 
-export default async function AdminDashboard() {
+export default async function AdminDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const session = await getSession()
 
   return (
@@ -31,13 +37,17 @@ export default async function AdminDashboard() {
         description="Where the business stands today."
       />
       <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent />
+        <DashboardContent searchParams={searchParams} />
       </Suspense>
     </div>
   )
 }
 
-async function DashboardContent() {
+async function DashboardContent({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const session = await requirePermission("dashboard:view")
   const scope = canViewAll(session.role, "booking") ? null : session.userId
   const summary = await getDashboardSummary(scope)
@@ -45,7 +55,17 @@ async function DashboardContent() {
   // The trend is money, so it follows the financial-report permission rather
   // than dashboard:view — sales and operations see the rest of the page.
   const showTrend = hasPermission(session.role, "report:financial")
-  const trend = showTrend ? await getMonthlyTrend({ groupBy: "month" } as never) : []
+
+  const raw = await searchParams
+  const str = (key: string) =>
+    typeof raw[key] === "string" && raw[key] ? (raw[key] as string) : undefined
+  const trendParams = safeListParams(ReportParamsSchema, {
+    from: str("from"),
+    to: str("to"),
+    groupBy: "month",
+  })
+
+  const trend = showTrend ? await getMonthlyTrend(trendParams) : []
 
   const { leads, bookings, money, followups, upcomingTrips, recentLeads } = summary
 
@@ -94,7 +114,9 @@ async function DashboardContent() {
         />
       </div>
 
-      {showTrend && <RevenueTrendCard data={trend} />}
+      {showTrend && (
+        <RevenueTrendCard data={trend} from={trendParams.from} to={trendParams.to} />
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="overflow-hidden rounded-xl border bg-card">

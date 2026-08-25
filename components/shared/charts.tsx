@@ -235,6 +235,79 @@ export function TrendLineChart({
   )
 }
 
+/**
+ * Change over time, as grouped columns rather than a line — each period's
+ * series sit side by side so the reader compares magnitudes bar-to-bar
+ * instead of following a shape.
+ */
+export function TrendBarChart({
+  data,
+  series,
+  xKey = "label",
+  className,
+  height = 260,
+  emptyMessage = "Not enough history to chart yet.",
+}: {
+  data: Record<string, string | number>[]
+  series: TrendSeries[]
+  xKey?: string
+  className?: string
+  height?: number
+  emptyMessage?: string
+}) {
+  if (data.length < 2) return <EmptyPlot message={emptyMessage} className={className} />
+
+  const config: ChartConfig = Object.fromEntries(
+    series.map((s) => [s.key, { label: s.label, color: SERIES[s.slot] }])
+  )
+
+  return (
+    <ChartContainer config={config} className={cn("w-full", className)} style={{ height }}>
+      <BarChart
+        accessibilityLayer
+        data={data}
+        margin={{ left: 4, right: 12, top: 8, bottom: 4 }}
+      >
+        <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+        <XAxis dataKey={xKey} tickLine={false} axisLine={false} tick={axisTick} />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          tick={axisTick}
+          width={56}
+          tickFormatter={(value: number) => formatMoneyCompact(value)}
+        />
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              formatter={(value, name) => (
+                <span className="flex w-full justify-between gap-4">
+                  <span className="text-muted-foreground">
+                    {config[name as string]?.label ?? name}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {formatMoneyShort(Number(value))}
+                  </span>
+                </span>
+              )}
+            />
+          }
+        />
+        {series.length > 1 && <ChartLegend content={<ChartLegendContent />} />}
+        {series.map((s) => (
+          <Bar
+            key={s.key}
+            dataKey={s.key}
+            fill={SERIES[s.slot]}
+            radius={4}
+            maxBarSize={28}
+          />
+        ))}
+      </BarChart>
+    </ChartContainer>
+  )
+}
+
 /* ---------------------------------------------------------------- share donut */
 
 export interface ShareDatum {

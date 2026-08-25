@@ -13,6 +13,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { DateRangeFilter } from "@/components/shared/date-range-filter"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,7 +55,7 @@ import { LeadStatsTiles } from "./lead-stats-tiles"
 import { ScheduleFollowupDialog } from "@/app/admin/followups/_components/schedule-followup-dialog"
 import { TripFormDialog } from "@/app/admin/trips/_components/trip-form-dialog"
 
-const FILTER_KEYS = ["status", "priority", "assignedTo"] as const
+const FILTER_KEYS = ["status", "priority", "assignedTo", "from", "to"] as const
 const PAGE_SIZE = 25
 
 const STATUS_FILTER_OPTIONS = [
@@ -75,6 +76,8 @@ export function LeadsView() {
     status: string
     priority: string
     assignedTo: string
+    from: string
+    to: string
   }>([...FILTER_KEYS])
 
   const [searchInput, setSearchInput] = React.useState(params.search)
@@ -95,6 +98,8 @@ export function LeadsView() {
       status: (params.status || undefined) as never,
       priority: (params.priority || undefined) as never,
       assignedTo: params.assignedTo || undefined,
+      from: params.from || undefined,
+      to: params.to || undefined,
     }),
     [
       params.page,
@@ -104,6 +109,8 @@ export function LeadsView() {
       params.status,
       params.priority,
       params.assignedTo,
+      params.from,
+      params.to,
     ]
   )
 
@@ -319,6 +326,16 @@ export function LeadsView() {
             options={PRIORITY_FILTER_OPTIONS}
             value={params.priority ?? ""}
             onValueChange={(value) => setFilter("priority", value)}
+          />
+
+          <DateRangeFilter
+            from={params.from}
+            to={params.to}
+            onChange={(range) => {
+              setFilter("from", range.from ?? null)
+              setFilter("to", range.to ?? null)
+            }}
+            className="w-full sm:w-auto"
           />
         </div>
 
