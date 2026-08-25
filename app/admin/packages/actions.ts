@@ -240,7 +240,7 @@ export const cloneItinerary = defineAction({
       shareTokenExpiresAt: shareTokenExpiry(),
       leadId: input.leadId ?? null,
       customerId: input.customerId ?? null,
-      title: input.title ?? undefined,
+      ...(input.title ? { title: input.title } : {}),
       createdBy: session.userId,
     })
     if (!clone) throw new ActionFailure("Source itinerary not found")
