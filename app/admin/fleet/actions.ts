@@ -183,7 +183,13 @@ export const assignVehicle = defineAction({
       createdBy: session.userId,
     })
     if (!result.ok) {
-      const { conflict } = result
+      const { conflict, conflictType } = result
+      if (conflictType === "driver") {
+        throw new ActionFailure(
+          `This driver is already assigned to ${conflict.bookingCode} from ${conflict.startDate} to ${conflict.endDate}`,
+          { driverId: ["Driver is not available for these dates"] }
+        )
+      }
       throw new ActionFailure(
         `This vehicle is already assigned to ${conflict.bookingCode} from ${conflict.startDate} to ${conflict.endDate}`,
         { vehicleId: ["Vehicle is not available for these dates"] }
@@ -209,13 +215,22 @@ export const updateAssignment = defineAction({
   permission: "vehicle:update",
   schema: UpdateAssignmentSchema,
   handler: async ({ id, ...values }) => {
-    const assignment = await service.updateAssignment(id, {
+    const result = await service.updateAssignment(id, {
       ...values,
       driverId: values.driverId ?? null,
       startOdometer: values.startOdometer ?? null,
       endOdometer: values.endOdometer ?? null,
     })
-    if (!assignment) throw new ActionFailure("Assignment not found")
+    if (!result.ok) {
+      if (result.reason === "conflict") {
+        throw new ActionFailure(
+          `This driver is already assigned to ${result.conflict.bookingCode} from ${result.conflict.startDate} to ${result.conflict.endDate}`,
+          { driverId: ["Driver is not available for these dates"] }
+        )
+      }
+      throw new ActionFailure("Assignment not found")
+    }
+    const { assignment } = result
     revalidatePath(`/admin/trips/${assignment.bookingId}`)
     return assignment
   },

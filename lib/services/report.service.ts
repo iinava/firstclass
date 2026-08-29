@@ -245,6 +245,7 @@ export async function getVehicleExpense(params: ReportParams) {
     .where(
       and(
         isNull(tripCostItems.deletedAt),
+        sql`${tripCostItems.status} <> 'cancelled'`,
         gte(bookings.startDate, from),
         lte(bookings.startDate, to)
       )

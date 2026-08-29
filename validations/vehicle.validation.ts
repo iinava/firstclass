@@ -101,13 +101,19 @@ export const AssignVehicleSchema = z
     path: ["endDate"],
   })
 
-export const UpdateAssignmentSchema = z.object({
-  id: uuidSchema,
-  driverId: uuidSchema.nullable().optional(),
-  startOdometer: z.coerce.number().int().min(0).nullable().optional(),
-  endOdometer: z.coerce.number().int().min(0).nullable().optional(),
-  notes: optionalText(300),
-})
+export const UpdateAssignmentSchema = z
+  .object({
+    id: uuidSchema,
+    driverId: uuidSchema.nullable().optional(),
+    startOdometer: z.coerce.number().int().min(0).nullable().optional(),
+    endOdometer: z.coerce.number().int().min(0).nullable().optional(),
+    notes: optionalText(300),
+  })
+  .refine(
+    (v) =>
+      v.startOdometer == null || v.endOdometer == null || v.endOdometer >= v.startOdometer,
+    { message: "End odometer cannot be before the start odometer", path: ["endOdometer"] }
+  )
 
 export const DeleteAssignmentSchema = z.object({ id: uuidSchema })
 

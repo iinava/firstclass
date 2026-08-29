@@ -330,8 +330,11 @@ export async function getExpense(id: string) {
   return row ?? null
 }
 
-export async function createExpense(values: typeof expenses.$inferInsert) {
-  const [row] = await db.insert(expenses).values(values).returning()
+export async function createExpense(
+  values: typeof expenses.$inferInsert,
+  client: Tx | typeof db = db
+) {
+  const [row] = await client.insert(expenses).values(values).returning()
   return row
 }
 

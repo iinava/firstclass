@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { txDb } from "@/db/drizzle"
 import { ActionFailure, defineAction } from "@/lib/action"
 import { recordAudit } from "@/lib/audit"
 import { nextExpenseNumber } from "@/lib/codes"
@@ -65,48 +66,61 @@ export const postPayroll = defineAction({
     // lands in that month's P&L rather than the month it was entered.
     const spentAt = lastDayOf(preview.month)
 
-    const run = await payroll.createRun({
-      month: preview.month,
-      paidLeaveAllowance: preview.paidLeaveAllowance,
-      employeeCount: preview.lines.length,
-      grossTotal: preview.grossTotal,
-      deductionTotal: preview.deductionTotal,
-      netTotal: preview.netTotal,
-      postedBy: session.userId,
-      notes: notes ?? null,
+    const run = await txDb.transaction(async (tx) => {
+      const run = await payroll.createRun(
+        {
+          month: preview.month,
+          paidLeaveAllowance: preview.paidLeaveAllowance,
+          employeeCount: preview.lines.length,
+          grossTotal: preview.grossTotal,
+          deductionTotal: preview.deductionTotal,
+          netTotal: preview.netTotal,
+          postedBy: session.userId,
+          notes: notes ?? null,
+        },
+        tx
+      )
+
+      for (const line of preview.lines) {
+        const stored = await payroll.createLine(
+          {
+            runId: run.id,
+            employeeId: line.employeeId,
+            monthlySalary: line.monthlySalary,
+            dayRate: line.dayRate,
+            daysInMonth: line.daysInMonth,
+            daysPresent: line.daysPresent,
+            daysHalf: line.daysHalf,
+            daysAbsent: line.daysAbsent,
+            daysPaidLeave: line.daysPaidLeave,
+            daysUnpaidLeave: line.daysUnpaidLeave,
+            daysHoliday: line.daysHoliday,
+            daysWeekOff: line.daysWeekOff,
+            daysUnmarked: line.daysUnmarked,
+            deduction: line.deduction,
+            netPay: line.netPay,
+          },
+          tx
+        )
+
+        const expense = await accounts.createExpense(
+          {
+            number: await nextExpenseNumber(new Date(spentAt)),
+            categoryId,
+            description: `Salary — ${line.name} (${preview.monthLabel})`,
+            amount: line.netPay,
+            spentAt,
+            mode: "bank_transfer",
+            createdBy: session.userId,
+          },
+          tx
+        )
+
+        await payroll.setLineExpense(stored.id, expense.id, tx)
+      }
+
+      return run
     })
-
-    for (const line of preview.lines) {
-      const stored = await payroll.createLine({
-        runId: run.id,
-        employeeId: line.employeeId,
-        monthlySalary: line.monthlySalary,
-        dayRate: line.dayRate,
-        daysInMonth: line.daysInMonth,
-        daysPresent: line.daysPresent,
-        daysHalf: line.daysHalf,
-        daysAbsent: line.daysAbsent,
-        daysPaidLeave: line.daysPaidLeave,
-        daysUnpaidLeave: line.daysUnpaidLeave,
-        daysHoliday: line.daysHoliday,
-        daysWeekOff: line.daysWeekOff,
-        daysUnmarked: line.daysUnmarked,
-        deduction: line.deduction,
-        netPay: line.netPay,
-      })
-
-      const expense = await accounts.createExpense({
-        number: await nextExpenseNumber(new Date(spentAt)),
-        categoryId,
-        description: `Salary — ${line.name} (${preview.monthLabel})`,
-        amount: line.netPay,
-        spentAt,
-        mode: "bank_transfer",
-        createdBy: session.userId,
-      })
-
-      await payroll.setLineExpense(stored.id, expense.id)
-    }
 
     await recordAudit({
       entity: "payroll_runs",

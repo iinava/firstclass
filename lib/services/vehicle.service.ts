@@ -82,6 +82,7 @@ export async function listVehicles(
         select sum(${tripCostItems.costAmount}) from ${tripCostItems}
         where ${tripCostItems.vehicleId} = "vehicles"."id"
           and ${tripCostItems.deletedAt} is null
+          and ${tripCostItems.status} <> 'cancelled'
       ), 0)::bigint`,
     })
     .from(vehicles)
@@ -274,6 +275,42 @@ export async function findAssignmentConflict(
   return row ?? null
 }
 
+/**
+ * Same overlap check as findAssignmentConflict but keyed on the driver —
+ * a vehicle can only carry one driver at a time even across different
+ * vehicles, so this closes the "same person double-booked on two trips" gap.
+ */
+export async function findDriverAssignmentConflict(
+  driverId: string,
+  startDate: string,
+  endDate: string,
+  excludeAssignmentId?: string,
+  client: Tx | typeof db = db
+): Promise<AssignmentConflict | null> {
+  const [row] = await client
+    .select({
+      bookingCode: bookings.code,
+      startDate: vehicleAssignments.startDate,
+      endDate: vehicleAssignments.endDate,
+    })
+    .from(vehicleAssignments)
+    .innerJoin(bookings, eq(bookings.id, vehicleAssignments.bookingId))
+    .where(
+      and(
+        eq(vehicleAssignments.driverId, driverId),
+        sql`${vehicleAssignments.startDate} <= ${endDate}`,
+        sql`${vehicleAssignments.endDate} >= ${startDate}`,
+        ne(bookings.status, "cancelled"),
+        excludeAssignmentId
+          ? ne(vehicleAssignments.id, excludeAssignmentId)
+          : undefined
+      )
+    )
+    .limit(1)
+
+  return row ?? null
+}
+
 export async function listAssignmentsByBooking(bookingId: string) {
   return db
     .select({
@@ -314,10 +351,15 @@ async function lockVehicle(tx: Tx, vehicleId: string): Promise<void> {
   await tx.select({ id: vehicles.id }).from(vehicles).where(eq(vehicles.id, vehicleId)).for("update")
 }
 
+async function lockDriver(tx: Tx, driverId: string): Promise<void> {
+  await tx.select({ id: drivers.id }).from(drivers).where(eq(drivers.id, driverId)).for("update")
+}
+
 /**
- * Transaction-wrapped assignVehicle: locks the vehicle row, re-checks for a
- * date-range conflict, then inserts — closes the double-booking race where
- * two concurrent requests both pass the conflict check before either commits.
+ * Transaction-wrapped assignVehicle: locks the vehicle (and driver, if one is
+ * given) row, re-checks for a date-range conflict on both, then inserts —
+ * closes the double-booking race where two concurrent requests both pass the
+ * conflict check before either commits, for the vehicle and the driver alike.
  */
 export async function assignVehicleAtomic(
   values: typeof vehicleAssignments.$inferInsert & {
@@ -325,9 +367,13 @@ export async function assignVehicleAtomic(
     startDate: string
     endDate: string
   }
-): Promise<{ ok: true; assignment: VehicleAssignment } | { ok: false; conflict: AssignmentConflict }> {
+): Promise<
+  | { ok: true; assignment: VehicleAssignment }
+  | { ok: false; conflictType: "vehicle" | "driver"; conflict: AssignmentConflict }
+> {
   return txDb.transaction(async (tx) => {
     await lockVehicle(tx, values.vehicleId)
+    if (values.driverId) await lockDriver(tx, values.driverId)
 
     const conflict = await findAssignmentConflict(
       values.vehicleId,
@@ -336,23 +382,61 @@ export async function assignVehicleAtomic(
       undefined,
       tx
     )
-    if (conflict) return { ok: false, conflict }
+    if (conflict) return { ok: false, conflictType: "vehicle", conflict }
+
+    if (values.driverId) {
+      const driverConflict = await findDriverAssignmentConflict(
+        values.driverId,
+        values.startDate,
+        values.endDate,
+        undefined,
+        tx
+      )
+      if (driverConflict) return { ok: false, conflictType: "driver", conflict: driverConflict }
+    }
 
     const assignment = await createAssignment(values, tx)
     return { ok: true, assignment }
   })
 }
 
+/**
+ * Reassigning a driver on an existing assignment can create the same
+ * double-booking findDriverAssignmentConflict guards against on create, so
+ * re-check it here using the assignment's own (unchanged) date range.
+ */
 export async function updateAssignment(
   id: string,
   values: Partial<typeof vehicleAssignments.$inferInsert>
-): Promise<VehicleAssignment | null> {
+): Promise<
+  | { ok: true; assignment: VehicleAssignment }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: "conflict"; conflict: AssignmentConflict }
+> {
+  if (values.driverId) {
+    const [existing] = await db
+      .select({ startDate: vehicleAssignments.startDate, endDate: vehicleAssignments.endDate })
+      .from(vehicleAssignments)
+      .where(eq(vehicleAssignments.id, id))
+      .limit(1)
+
+    if (!existing) return { ok: false, reason: "not_found" }
+
+    const conflict = await findDriverAssignmentConflict(
+      values.driverId,
+      existing.startDate,
+      existing.endDate,
+      id
+    )
+    if (conflict) return { ok: false, reason: "conflict", conflict }
+  }
+
   const [row] = await db
     .update(vehicleAssignments)
     .set(values)
     .where(eq(vehicleAssignments.id, id))
     .returning()
-  return row ?? null
+  return row ? { ok: true, assignment: row } : { ok: false, reason: "not_found" }
 }
 
 export async function deleteAssignment(id: string): Promise<VehicleAssignment | null> {

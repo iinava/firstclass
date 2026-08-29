@@ -1,6 +1,6 @@
 import "server-only"
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm"
-import { db } from "@/db/drizzle"
+import { db, type Tx } from "@/db/drizzle"
 import { expenses, expenseCategories } from "@/db/schemas/accounts.schema"
 import { attendance, employees } from "@/db/schemas/hrms.schema"
 import {
@@ -306,18 +306,28 @@ export async function getSalaryCategoryId(): Promise<string> {
   return existing.id
 }
 
-export async function createRun(values: typeof payrollRuns.$inferInsert) {
-  const [row] = await db.insert(payrollRuns).values(values).returning()
+export async function createRun(
+  values: typeof payrollRuns.$inferInsert,
+  client: Tx | typeof db = db
+) {
+  const [row] = await client.insert(payrollRuns).values(values).returning()
   return row
 }
 
-export async function createLine(values: typeof payrollLines.$inferInsert) {
-  const [row] = await db.insert(payrollLines).values(values).returning()
+export async function createLine(
+  values: typeof payrollLines.$inferInsert,
+  client: Tx | typeof db = db
+) {
+  const [row] = await client.insert(payrollLines).values(values).returning()
   return row
 }
 
-export async function setLineExpense(lineId: string, expenseId: string) {
-  await db.update(payrollLines).set({ expenseId }).where(eq(payrollLines.id, lineId))
+export async function setLineExpense(
+  lineId: string,
+  expenseId: string,
+  client: Tx | typeof db = db
+) {
+  await client.update(payrollLines).set({ expenseId }).where(eq(payrollLines.id, lineId))
 }
 
 export interface PostedRunRow {

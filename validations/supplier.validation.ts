@@ -67,19 +67,25 @@ export const SupplierListParamsSchema = listParamsSchema.extend({
 
 // ---------------------------------------------------------------- rate cards
 
-export const SupplierRateFormSchema = z.object({
-  supplierId: uuidSchema,
-  title: requiredText("Title", 160),
-  unit: requiredText("Unit", 40),
-  rate: moneySchema,
-  validFrom: optionalDateString,
-  validTo: optionalDateString,
-  notes: optionalText(300),
-})
+export const SupplierRateFormSchema = z
+  .object({
+    supplierId: uuidSchema,
+    title: requiredText("Title", 160),
+    unit: requiredText("Unit", 40),
+    rate: moneySchema,
+    validFrom: optionalDateString,
+    validTo: optionalDateString,
+    notes: optionalText(300),
+  })
+  .refine((v) => !v.validFrom || !v.validTo || v.validTo >= v.validFrom, {
+    message: "Valid-to date cannot be before the valid-from date",
+    path: ["validTo"],
+  })
 
-export const UpdateSupplierRateSchema = SupplierRateFormSchema.extend({
-  id: uuidSchema,
-})
+export const UpdateSupplierRateSchema = z.intersection(
+  SupplierRateFormSchema,
+  z.object({ id: uuidSchema })
+)
 
 export const DeleteSupplierRateSchema = z.object({ id: uuidSchema })
 

@@ -33,32 +33,44 @@ export const ITINERARY_STATUS_LABELS: Record<
   archived: "Archived",
 }
 
-export const ItineraryFormSchema = z.object({
-  kind: itineraryKindSchema.default("package"),
-  title: requiredText("Title", 200),
-  destination: optionalText(160),
-  durationDays: z.coerce.number().int().min(1, "At least 1 day").max(90).default(1),
-  durationNights: z.coerce.number().int().min(0).max(90).default(0),
-  summary: optionalText(2000),
-  coverImageUrl: optionalText(500),
+export const ItineraryFormSchema = z
+  .object({
+    kind: itineraryKindSchema.default("package"),
+    title: requiredText("Title", 200),
+    destination: optionalText(160),
+    durationDays: z.coerce.number().int().min(1, "At least 1 day").max(90).default(1),
+    durationNights: z.coerce.number().int().min(0).max(90).default(0),
+    summary: optionalText(2000),
+    coverImageUrl: optionalText(500),
 
-  leadId: uuidSchema.nullable().optional(),
-  customerId: uuidSchema.nullable().optional(),
+    leadId: uuidSchema.nullable().optional(),
+    customerId: uuidSchema.nullable().optional(),
 
-  pricingMode: z.enum(["per_pax", "fixed"]).default("per_pax"),
-  pricePerAdult: optionalMoneySchema,
-  pricePerChild: optionalMoneySchema,
-  fixedPrice: optionalMoneySchema,
+    pricingMode: z.enum(["per_pax", "fixed"]).default("fixed"),
+    pricePerAdult: optionalMoneySchema,
+    pricePerChild: optionalMoneySchema,
+    fixedPrice: optionalMoneySchema,
 
-  /** Free-text lines, one per bullet on the shared page. */
-  inclusions: z.array(z.string().trim().min(1)).default([]),
-  exclusions: z.array(z.string().trim().min(1)).default([]),
-  termsAndConditions: optionalText(4000),
-  validUntil: optionalDateString,
-})
+    /** Free-text lines, one per bullet on the shared page. */
+    inclusions: z.array(z.string().trim().min(1)).default([]),
+    exclusions: z.array(z.string().trim().min(1)).default([]),
+    termsAndConditions: optionalText(4000),
+    validUntil: optionalDateString,
+  })
+  .refine((v) => v.pricingMode !== "per_pax" || (v.pricePerAdult ?? 0) > 0, {
+    message: "Enter a per-adult price",
+    path: ["pricePerAdult"],
+  })
+  .refine((v) => v.pricingMode !== "fixed" || (v.fixedPrice ?? 0) > 0, {
+    message: "Enter the fixed price",
+    path: ["fixedPrice"],
+  })
 
 export const CreateItinerarySchema = ItineraryFormSchema
-export const UpdateItinerarySchema = ItineraryFormSchema.extend({ id: uuidSchema })
+export const UpdateItinerarySchema = z.intersection(
+  ItineraryFormSchema,
+  z.object({ id: uuidSchema })
+)
 export const DeleteItinerarySchema = z.object({ id: uuidSchema })
 
 export const UpdateItineraryStatusSchema = z.object({
