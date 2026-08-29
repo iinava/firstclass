@@ -135,11 +135,11 @@ export function EmployeesView() {
       },
       {
         key: "salary",
-        header: "Salary",
+        header: "Per day",
         hideOnMobile: true,
         cell: (row) =>
-          row.monthlySalary ? (
-            <span className="tabular-nums">{formatMoneyShort(row.monthlySalary)}</span>
+          row.dayRate ? (
+            <span className="tabular-nums">{formatMoneyShort(row.dayRate)}</span>
           ) : (
             <span className="text-muted-foreground">—</span>
           ),

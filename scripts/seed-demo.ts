@@ -220,20 +220,21 @@ const VEHICLES = [
   { reg: "KL01KL2345", type: "hatchback", make: "Hyundai", model: "i20", seats: 4, ownership: "hired", perKm: "12", perDay: "2200" },
 ] as const
 
+/** dayRate figures are the old monthly figures / 30, rounded to the rupee. */
 const STAFF = [
-  { username: "meera.manager", name: "Meera Raghavan", role: "manager", designation: "Operations Manager", department: "Management", salary: "68000" },
-  { username: "arjun.sales", name: "Arjun Das", role: "sales", designation: "Senior Travel Consultant", department: "Sales", salary: "38000" },
-  { username: "nithya.sales", name: "Nithya Pillai", role: "sales", designation: "Travel Consultant", department: "Sales", salary: "32000" },
-  { username: "faisal.ops", name: "Faisal Rahman", role: "ops", designation: "Trip Coordinator", department: "Operations", salary: "35000" },
-  { username: "reena.accounts", name: "Reena Jacob", role: "accounts", designation: "Accounts Executive", department: "Accounts", salary: "40000" },
+  { username: "meera.manager", name: "Meera Raghavan", role: "manager", designation: "Operations Manager", department: "Management", dayRate: "2267" },
+  { username: "arjun.sales", name: "Arjun Das", role: "sales", designation: "Senior Travel Consultant", department: "Sales", dayRate: "1267" },
+  { username: "nithya.sales", name: "Nithya Pillai", role: "sales", designation: "Travel Consultant", department: "Sales", dayRate: "1067" },
+  { username: "faisal.ops", name: "Faisal Rahman", role: "ops", designation: "Trip Coordinator", department: "Operations", dayRate: "1167" },
+  { username: "reena.accounts", name: "Reena Jacob", role: "accounts", designation: "Accounts Executive", department: "Accounts", dayRate: "1333" },
 ] as const
 
 /** Non-login staff, so the employee list is not a mirror of the user list. */
 const EXTRA_EMPLOYEES = [
-  { name: "Sajeev Menon", phone: "9847040006", designation: "Driver Supervisor", department: "Operations", salary: "26000", status: "active" },
-  { name: "Anju Thomas", phone: "9847040007", designation: "Front Desk", department: "Admin", salary: "22000", status: "active" },
-  { name: "Hari Kumar", phone: "9847040008", designation: "Trip Coordinator", department: "Operations", salary: "30000", status: "on_leave" },
-  { name: "Divya Ramesh", phone: "9847040009", designation: "Marketing Associate", department: "Sales", salary: "28000", status: "resigned" },
+  { name: "Sajeev Menon", phone: "9847040006", designation: "Driver Supervisor", department: "Operations", dayRate: "867", status: "active" },
+  { name: "Anju Thomas", phone: "9847040007", designation: "Front Desk", department: "Admin", dayRate: "733", status: "active" },
+  { name: "Hari Kumar", phone: "9847040008", designation: "Trip Coordinator", department: "Operations", dayRate: "1000", status: "on_leave" },
+  { name: "Divya Ramesh", phone: "9847040009", designation: "Marketing Associate", department: "Sales", dayRate: "933", status: "resigned" },
 ] as const
 
 // ------------------------------------------------------------------ seeding
@@ -291,7 +292,7 @@ async function main() {
         designation: s.designation,
         department: s.department,
         dateOfJoining: day(-420 - index * 90),
-        monthlySalary: rupees(s.salary),
+        dayRate: rupees(s.dayRate),
         status: "active",
       })
       .returning()
@@ -307,7 +308,7 @@ async function main() {
         designation: e.designation,
         department: e.department,
         dateOfJoining: day(-300),
-        monthlySalary: rupees(e.salary),
+        dayRate: rupees(e.dayRate),
         status: e.status,
       })
       .returning()

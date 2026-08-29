@@ -29,11 +29,6 @@ export const payrollRuns = pgTable(
     id: pk(),
     /** Always the first day of the month being paid. */
     month: date("month").notNull(),
-    /**
-     * Paid-leave days allowed per employee per month, copied onto the run so a
-     * later policy change never rewrites what was already paid.
-     */
-    paidLeaveAllowance: integer("paid_leave_allowance").notNull().default(2),
     employeeCount: integer("employee_count").notNull(),
     /** Sum of the employees' monthly salaries, before deductions. */
     grossTotal: money("gross_total").notNull().default(0),
@@ -65,11 +60,17 @@ export const payrollLines = pgTable(
     employeeId: uuid("employee_id")
       .notNull()
       .references(() => employees.id),
-    /** Gross monthly salary at the time of the run. */
+    /** dayRate x daysInMonth — the monthly-equivalent gross at the time of the run. */
     monthlySalary: money("monthly_salary").notNull(),
-    /** monthlySalary / daysInMonth, rounded to the paise. */
+    /** The employee's per-day salary at the time of the run. */
     dayRate: money("day_rate").notNull(),
     daysInMonth: integer("days_in_month").notNull(),
+    /**
+     * The employee's paid-leave allowance as it stood when this run posted —
+     * copied here (not just read off the employee) so a later change to their
+     * allowance never rewrites what was already paid.
+     */
+    paidLeaveAllowance: integer("paid_leave_allowance").notNull().default(2),
 
     daysPresent: integer("days_present").notNull().default(0),
     daysHalf: integer("days_half").notNull().default(0),

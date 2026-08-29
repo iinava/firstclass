@@ -16,6 +16,7 @@ import { Spinner } from "@/components/ui/spinner"
 import {
   DateField,
   MoneyField,
+  NumberField,
   SelectField,
   TextField,
   TextareaField,
@@ -47,7 +48,8 @@ const EMPTY: EmployeeFormValues = {
   dateOfJoining: "",
   dateOfBirth: "",
   address: "",
-  monthlySalary: "",
+  dayRate: "",
+  paidLeavesPerMonth: 2,
   emergencyContact: "",
   userId: null,
   status: "active",
@@ -108,9 +110,8 @@ function EmployeeForm({
             dateOfJoining: employee.dateOfJoining ?? "",
             dateOfBirth: employee.dateOfBirth ?? "",
             address: employee.address ?? "",
-            monthlySalary: employee.monthlySalary
-              ? String(toRupees(employee.monthlySalary))
-              : "",
+            dayRate: employee.dayRate ? String(toRupees(employee.dayRate)) : "",
+            paidLeavesPerMonth: employee.paidLeavesPerMonth,
             emergencyContact: employee.emergencyContact ?? "",
             userId: employee.userId,
             status: employee.status,
@@ -180,8 +181,15 @@ function EmployeeForm({
             <DateField control={form.control} name="dateOfBirth" label="Date of birth" />
             <MoneyField
               control={form.control}
-              name="monthlySalary"
-              label="Monthly salary (₹)"
+              name="dayRate"
+              label="Per day salary (₹)"
+            />
+            <NumberField
+              control={form.control}
+              name="paidLeavesPerMonth"
+              label="Paid leaves per month"
+              min={0}
+              max={31}
             />
             <TextField
               control={form.control}

@@ -1407,7 +1407,7 @@ export async function GET(request: Request) {
         designation: "Travel consultant",
         department: "Sales",
         dateOfJoining: iso(-400),
-        monthlySalary: "32000",
+        dayRate: "1100",
         status: "active",
       })
     )
@@ -1555,15 +1555,15 @@ export async function GET(request: Request) {
       await employeeActions.createEmployee({
         name: `${TAG} Payroll Subject`,
         phone: phone(),
-        monthlySalary: "30000",
+        dayRate: "1000",
         status: "active",
       })
     )
     bin.employee.push(person.id)
 
-    // 30,000 over 30 days = ₹1,000 a day. Two absences, three leave days (two
-    // of them covered by the monthly allowance) and one half-day come to 3.5
-    // unpaid days, so ₹3,500 should come off.
+    // ₹1,000 a day, 30 days in the month = ₹30,000 gross. Two absences, three
+    // leave days (two of them covered by the default 2-day monthly allowance)
+    // and one half-day come to 3.5 unpaid days, so ₹3,500 should come off.
     const marks: [number, string][] = [
       [1, "present"],
       [2, "absent"],
@@ -1592,12 +1592,12 @@ export async function GET(request: Request) {
     )
     expect("preview is not posted yet", preview.posted === null)
     expect("preview covers 30 days", preview.daysInMonth === 30)
-    expect("paid-leave allowance is 2", preview.paidLeaveAllowance === 2)
 
     const line = preview.lines.find((l) => l.employeeId === person.id)
     if (!line) throw new Error("payroll preview is missing the test employee")
 
-    expect("day rate is salary / days in month", line.dayRate === 100_000, `${line.dayRate}`)
+    expect("paid-leave allowance defaults to 2", line.paidLeaveAllowance === 2)
+    expect("day rate is what's set on the employee", line.dayRate === 100_000, `${line.dayRate}`)
     expect("two absences counted", line.daysAbsent === 2, `${line.daysAbsent}`)
     expect(
       "two leave days covered by the allowance",

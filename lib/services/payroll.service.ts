@@ -9,9 +9,6 @@ import {
   type PayrollRun,
 } from "@/db/schemas/payroll.schema"
 
-/** Paid-leave days an employee gets per month before leave starts costing them. */
-export const PAID_LEAVE_PER_MONTH = 2
-
 /** The expense category salary postings land in. */
 const SALARY_CATEGORY = "Salaries"
 
@@ -23,6 +20,8 @@ export interface PayrollLinePreview {
   monthlySalary: number
   dayRate: number
   daysInMonth: number
+  /** This employee's paid-leave allowance for the month, as set on their record. */
+  paidLeaveAllowance: number
   daysPresent: number
   daysHalf: number
   daysAbsent: number
@@ -41,7 +40,6 @@ export interface PayrollPreview {
   month: string
   monthLabel: string
   daysInMonth: number
-  paidLeaveAllowance: number
   lines: PayrollLinePreview[]
   grossTotal: number
   deductionTotal: number
@@ -52,7 +50,7 @@ export interface PayrollPreview {
     postedAt: Date
     netTotal: number
   } | null
-  /** Employees skipped because they have no salary on record. */
+  /** Employees skipped because they have no day rate on record. */
   missingSalary: { employeeId: string; name: string; empCode: string }[]
 }
 
@@ -84,10 +82,9 @@ function monthBounds(month: string) {
  * a way nobody notices. Once the month is posted the stored lines are the
  * record, and this returns those instead.
  *
- *   day rate  = monthly salary / days in the month (calendar days, so a month
- *               with every day paid comes to exactly the salary)
- *   unpaid    = absent + leave beyond the monthly allowance + unpaid leave +
- *               half a day per half-day
+ *   day rate  = set directly on the employee record — the input, not derived
+ *   unpaid    = absent + leave beyond the employee's own monthly allowance +
+ *               unpaid leave + half a day per half-day
  *   deduction = unpaid days x day rate
  *
  * Holidays, week-offs and days nobody marked are paid. Unmarked days are counted
@@ -106,7 +103,8 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
         empCode: employees.empCode,
         name: employees.name,
         designation: employees.designation,
-        monthlySalary: employees.monthlySalary,
+        dayRate: employees.dayRate,
+        paidLeavesPerMonth: employees.paidLeavesPerMonth,
       })
       .from(employees)
       .where(
@@ -139,8 +137,8 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
   const missingSalary: PayrollPreview["missingSalary"] = []
 
   for (const person of staff) {
-    const salary = Number(person.monthlySalary ?? 0)
-    if (!salary) {
+    const dayRate = Number(person.dayRate ?? 0)
+    if (!dayRate) {
       missingSalary.push({
         employeeId: person.id,
         name: person.name,
@@ -148,6 +146,8 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
       })
       continue
     }
+    const paidLeaveAllowance = person.paidLeavesPerMonth
+    const salary = dayRate * daysInMonth
 
     const counts = byEmployee.get(person.id) ?? {}
     const daysPresent = counts.present ?? 0
@@ -160,9 +160,9 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
 
     // Only leave marked as paid-eligible draws on the monthly allowance —
     // leave approved as "unpaid" is deducted in full regardless.
-    const daysPaidLeave = Math.min(leaveDays, PAID_LEAVE_PER_MONTH)
+    const daysPaidLeave = Math.min(leaveDays, paidLeaveAllowance)
     const daysUnpaidLeave =
-      Math.max(0, leaveDays - PAID_LEAVE_PER_MONTH) + leaveDaysUnpaid
+      Math.max(0, leaveDays - paidLeaveAllowance) + leaveDaysUnpaid
 
     const marked =
       daysPresent +
@@ -174,7 +174,6 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
       daysWeekOff
     const daysUnmarked = Math.max(0, daysInMonth - marked)
 
-    const dayRate = Math.round(salary / daysInMonth)
     const unpaidDays = daysAbsent + daysUnpaidLeave + daysHalf * 0.5
     // Never deduct more than the salary — a register with more absences than
     // days in the month would otherwise produce a negative payout.
@@ -188,6 +187,7 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
       monthlySalary: salary,
       dayRate,
       daysInMonth,
+      paidLeaveAllowance,
       daysPresent,
       daysHalf,
       daysAbsent,
@@ -206,7 +206,6 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
     month: first,
     monthLabel: label,
     daysInMonth,
-    paidLeaveAllowance: PAID_LEAVE_PER_MONTH,
     lines,
     grossTotal: lines.reduce((sum, l) => sum + l.monthlySalary, 0),
     deductionTotal: lines.reduce((sum, l) => sum + l.deduction, 0),
@@ -250,6 +249,7 @@ async function storedPreview(
     monthlySalary: Number(line.monthlySalary),
     dayRate: Number(line.dayRate),
     daysInMonth: line.daysInMonth,
+    paidLeaveAllowance: line.paidLeaveAllowance,
     daysPresent: line.daysPresent,
     daysHalf: line.daysHalf,
     daysAbsent: line.daysAbsent,
@@ -267,7 +267,6 @@ async function storedPreview(
     month: run.month,
     monthLabel: label,
     daysInMonth: lines[0]?.daysInMonth ?? 0,
-    paidLeaveAllowance: run.paidLeaveAllowance,
     lines,
     grossTotal: Number(run.grossTotal),
     deductionTotal: Number(run.deductionTotal),

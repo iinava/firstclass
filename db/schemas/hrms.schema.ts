@@ -60,8 +60,10 @@ export const employees = pgTable(
     dateOfJoining: date("date_of_joining"),
     dateOfBirth: date("date_of_birth"),
     address: text("address"),
-    /** Gross monthly salary in paise. */
-    monthlySalary: money("monthly_salary"),
+    /** Per-day salary in paise — the input payroll is computed from. */
+    dayRate: money("day_rate"),
+    /** Leave days this employee gets paid for each month before it starts costing them. */
+    paidLeavesPerMonth: integer("paid_leaves_per_month").notNull().default(2),
     emergencyContact: text("emergency_contact"),
     status: employeeStatusEnum("status").notNull().default("active"),
     notes: text("notes"),

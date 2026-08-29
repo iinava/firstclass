@@ -73,7 +73,12 @@ export function PayrollView({ canPost }: { canPost: boolean }) {
         header: "Salary",
         align: "right",
         cell: (row) => (
-          <span className="tabular-nums">{formatMoneyShort(row.monthlySalary)}</span>
+          <div className="min-w-0">
+            <p className="tabular-nums">{formatMoneyShort(row.monthlySalary)}</p>
+            <p className="text-[13px] whitespace-nowrap text-muted-foreground">
+              {formatMoneyShort(row.dayRate)}/day
+            </p>
+          </div>
         ),
       },
       {
@@ -197,11 +202,7 @@ export function PayrollView({ canPost }: { canPost: boolean }) {
         <StatCard
           label="Deductions"
           value={isLoading ? "—" : formatMoneyShort(data?.deductionTotal ?? 0)}
-          sub={
-            data
-              ? `Leave beyond ${data.paidLeaveAllowance} days a month, and absences`
-              : undefined
-          }
+          sub="Leave beyond each employee's monthly allowance, and absences"
           tone={data && data.deductionTotal > 0 ? "warning" : "default"}
           icon={MinusCircleIcon}
         />
@@ -223,11 +224,11 @@ export function PayrollView({ canPost }: { canPost: boolean }) {
             <span className="font-medium">
               {data.missingSalary.length} active{" "}
               {data.missingSalary.length === 1 ? "employee has" : "employees have"} no
-              monthly salary on record
+              per-day salary on record
             </span>{" "}
             and {data.missingSalary.length === 1 ? "is" : "are"} left out of this run:{" "}
-            {data.missingSalary.map((e) => e.name).join(", ")}. Set their salary on the
-            Employees screen and reload.
+            {data.missingSalary.map((e) => e.name).join(", ")}. Set their per-day salary
+            on the Employees screen and reload.
           </p>
         </div>
       )}
@@ -238,7 +239,7 @@ export function PayrollView({ canPost }: { canPost: boolean }) {
         getRowId={(row) => row.employeeId}
         isLoading={isLoading}
         emptyTitle="Nothing to pay this month"
-        emptyDescription="Active employees with a monthly salary on record appear here."
+        emptyDescription="Active employees with a per-day salary on record appear here."
       />
 
       <ConfirmDialog

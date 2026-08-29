@@ -70,7 +70,6 @@ export const postPayroll = defineAction({
       const run = await payroll.createRun(
         {
           month: preview.month,
-          paidLeaveAllowance: preview.paidLeaveAllowance,
           employeeCount: preview.lines.length,
           grossTotal: preview.grossTotal,
           deductionTotal: preview.deductionTotal,
@@ -89,6 +88,7 @@ export const postPayroll = defineAction({
             monthlySalary: line.monthlySalary,
             dayRate: line.dayRate,
             daysInMonth: line.daysInMonth,
+            paidLeaveAllowance: line.paidLeaveAllowance,
             daysPresent: line.daysPresent,
             daysHalf: line.daysHalf,
             daysAbsent: line.daysAbsent,
