@@ -102,6 +102,8 @@ export function TripDetail({ tripId }: { tripId: string }) {
   const [paxOpen, setPaxOpen] = React.useState(false)
   const [cancelOpen, setCancelOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
+  const [deletingAssignmentId, setDeletingAssignmentId] = React.useState<string | null>(null)
+  const [deletingPaxId, setDeletingPaxId] = React.useState<string | null>(null)
   const [tab, setTab] = React.useState("costs")
 
   const statusMutation = useActionMutation({
@@ -121,12 +123,14 @@ export function TripDetail({ tripId }: { tripId: string }) {
     action: removeAssignment,
     successMessage: "Vehicle unassigned",
     invalidate: [qk.vehicles.all, qk.bookings.all],
+    onSuccess: () => setDeletingAssignmentId(null),
   })
 
   const removePaxMutation = useActionMutation({
     action: removePax,
     successMessage: "Passenger removed",
     invalidate: [qk.bookings.all],
+    onSuccess: () => setDeletingPaxId(null),
   })
 
   const deleteBookingMutation = useActionMutation({
@@ -472,7 +476,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
                     size="icon-sm"
                     aria-label="Unassign vehicle"
                     disabled={removeVehicle.isPending}
-                    onClick={() => removeVehicle.mutate({ id: assignment.id })}
+                    onClick={() => setDeletingAssignmentId(assignment.id)}
                   >
                     <XCircleIcon className="size-4" />
                   </Button>
@@ -513,7 +517,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
                     size="icon-sm"
                     aria-label="Remove passenger"
                     disabled={removePaxMutation.isPending}
-                    onClick={() => removePaxMutation.mutate({ id: p.id })}
+                    onClick={() => setDeletingPaxId(p.id)}
                   >
                     <XCircleIcon className="size-4" />
                   </Button>
@@ -662,6 +666,30 @@ export function TripDetail({ tripId }: { tripId: string }) {
         variant="destructive"
         isPending={deleteBookingMutation.isPending}
         onConfirm={() => deleteBookingMutation.mutate({ id: tripId })}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deletingAssignmentId)}
+        onOpenChange={(open) => !open && setDeletingAssignmentId(null)}
+        title="Unassign this vehicle?"
+        description="The vehicle and driver become free for the same dates on other trips."
+        confirmLabel="Unassign"
+        variant="destructive"
+        isPending={removeVehicle.isPending}
+        onConfirm={() =>
+          deletingAssignmentId && removeVehicle.mutate({ id: deletingAssignmentId })
+        }
+      />
+
+      <ConfirmDialog
+        open={Boolean(deletingPaxId)}
+        onOpenChange={(open) => !open && setDeletingPaxId(null)}
+        title="Remove this passenger?"
+        description="Their name and details are removed from this trip."
+        confirmLabel="Remove"
+        variant="destructive"
+        isPending={removePaxMutation.isPending}
+        onConfirm={() => deletingPaxId && removePaxMutation.mutate({ id: deletingPaxId })}
       />
     </div>
   )

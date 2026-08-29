@@ -125,7 +125,12 @@ export const fetchPax = defineAction({
   name: "fetchPax",
   permission: "booking:view",
   schema: z.object({ bookingId: uuidSchema }),
-  handler: async ({ bookingId }) => service.listPax(bookingId),
+  handler: async ({ bookingId }, { session }) => {
+    const booking = await service.getBookingRaw(bookingId)
+    if (!booking) throw new ActionFailure("Booking not found")
+    assertBookingInScope(session, booking)
+    return service.listPax(bookingId)
+  },
 })
 
 export const createBooking = defineAction({
@@ -425,7 +430,11 @@ export const addPax = defineAction({
   name: "addPax",
   permission: "booking:update",
   schema: BookingPaxSchema,
-  handler: async (input) => {
+  handler: async (input, { session }) => {
+    const booking = await service.getBookingRaw(input.bookingId)
+    if (!booking) throw new ActionFailure("Booking not found")
+    assertBookingInScope(session, booking)
+
     const pax = await service.createPax({
       ...input,
       age: input.age ?? null,
@@ -439,7 +448,13 @@ export const removePax = defineAction({
   name: "removePax",
   permission: "booking:update",
   schema: DeletePaxSchema,
-  handler: async ({ id }) => {
+  handler: async ({ id }, { session }) => {
+    const pax = await service.getPax(id)
+    if (!pax) throw new ActionFailure("Passenger not found")
+    const booking = await service.getBookingRaw(pax.bookingId)
+    if (!booking) throw new ActionFailure("Booking not found")
+    assertBookingInScope(session, booking)
+
     const deleted = await service.deletePax(id)
     if (deleted) revalidatePath(`/admin/trips/${deleted.bookingId}`)
     return { id }

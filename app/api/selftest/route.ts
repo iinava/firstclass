@@ -1586,6 +1586,29 @@ export async function GET(request: Request) {
       )
     }
 
+    // A second employee with a non-default allowance, so the per-employee
+    // (rather than global) allowance is actually exercised.
+    const person2 = must(
+      "createEmployee (payroll, zero allowance)",
+      await employeeActions.createEmployee({
+        name: `${TAG} Payroll Subject (zero allowance)`,
+        phone: phone(),
+        dayRate: "500",
+        paidLeavesPerMonth: 0,
+        status: "active",
+      })
+    )
+    bin.employee.push(person2.id)
+
+    must(
+      `markAttendance ${day(1)} leave (person2)`,
+      await employeeActions.markAttendance({
+        employeeId: person2.id,
+        date: day(1),
+        status: "leave",
+      })
+    )
+
     const preview = must(
       "fetchPayrollPreview",
       await payrollActions.fetchPayrollPreview({ month: MONTH })
@@ -1613,6 +1636,19 @@ export async function GET(request: Request) {
     expect("21 days left unmarked", line.daysUnmarked === 21, `${line.daysUnmarked}`)
     expect("deduction is 3,500", line.deduction === 350_000, `${line.deduction}`)
     expect("net pay is 26,500", line.netPay === 2_650_000, `${line.netPay}`)
+
+    const line2 = preview.lines.find((l) => l.employeeId === person2.id)
+    if (!line2) throw new Error("payroll preview is missing the zero-allowance test employee")
+    expect(
+      "custom paid-leave allowance of 0 is honored",
+      line2.paidLeaveAllowance === 0,
+      `${line2.paidLeaveAllowance}`
+    )
+    expect(
+      "with zero allowance the leave day is fully unpaid",
+      line2.daysPaidLeave === 0 && line2.daysUnpaidLeave === 1,
+      `${line2.daysPaidLeave}/${line2.daysUnpaidLeave}`
+    )
 
     mustFail(
       "posting a total the operator never saw is refused",
@@ -1661,6 +1697,17 @@ export async function GET(request: Request) {
       Number(ourExpense[0]?.amount) === 2_650_000,
       `${ourExpense[0]?.amount}`
     )
+
+    const frozenLine2 = await db
+      .select({ paidLeaveAllowance: payrollLines.paidLeaveAllowance })
+      .from(payrollLines)
+      .where(eq(payrollLines.employeeId, person2.id))
+    expect(
+      "the frozen line keeps the employee's own allowance, not the column default",
+      frozenLine2[0]?.paidLeaveAllowance === 0,
+      `${frozenLine2[0]?.paidLeaveAllowance}`
+    )
+
     expect(
       "the expense names the employee and month",
       Boolean(ourExpense[0]?.description?.includes(TAG)),

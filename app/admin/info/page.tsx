@@ -1179,8 +1179,12 @@ export default function InfoPage() {
               { name: "Designation, Department", note: "Free text — what they do and which team they are in. Department filters the list." },
               { name: "Date of joining, Date of birth", note: "Optional." },
               {
-                name: "Monthly salary",
-                note: "Gross pay for a full month. Payroll works from this, so an employee without it is left out of the salary run.",
+                name: "Per day salary",
+                note: "What this person is paid for one day worked. Payroll works from this directly, so an employee without it is left out of the salary run.",
+              },
+              {
+                name: "Paid leaves per month",
+                note: "How many leave days this employee can take a month before it costs them. Defaults to 2, and can be set per employee.",
               },
               { name: "Emergency contact", note: "Free text." },
               {
@@ -1260,16 +1264,18 @@ export default function InfoPage() {
         <div className="flex flex-col gap-3">
           <SubHeading>How a month is worked out</SubHeading>
           <div className="flex flex-col gap-2 rounded-md border bg-muted/30 p-4 font-mono text-xs text-muted-foreground">
-            <p>Day rate = Monthly salary ÷ days in the month</p>
-            <p>Unpaid days = absences + leave beyond 2 days + ½ per half-day</p>
+            <p>Day rate = set directly on the employee record</p>
+            <p>Unpaid days = absences + leave beyond their monthly allowance + ½ per half-day</p>
             <p>Deduction = Unpaid days × Day rate</p>
-            <p>Net pay = Monthly salary − Deduction</p>
+            <p>Gross salary = Day rate × days in the month</p>
+            <p>Net pay = Gross salary − Deduction</p>
           </div>
           <Bullets
             items={[
               <>
-                Every employee gets <strong>two paid leave days a month</strong>.
-                The third and any beyond it are deducted.
+                Every employee has their own{" "}
+                <strong>paid leaves per month</strong> allowance, defaulting to{" "}
+                <strong>two</strong>. Leave beyond that allowance is deducted.
               </>,
               <>
                 <strong>Present, holiday and week-off are paid</strong> in full,
@@ -1283,13 +1289,14 @@ export default function InfoPage() {
                 that reduce pay. A half-day costs half a day&apos;s rate.
               </>,
               <>
-                The day rate uses <strong>calendar days</strong>, so a month with
-                nothing marked against an employee pays exactly their salary.
+                Gross salary is the day rate × <strong>calendar days</strong> in
+                the month, so a month with nothing marked against an employee
+                pays exactly that figure.
               </>,
               <>
-                An employee with <strong>no salary on record</strong> is left out
-                and named in a warning at the top — they are never quietly paid
-                zero.
+                An employee with <strong>no day rate on record</strong> is left
+                out and named in a warning at the top — they are never quietly
+                paid zero.
               </>,
             ]}
           />
@@ -1420,9 +1427,10 @@ export default function InfoPage() {
             { name: "Unit cost × Quantity", note: "On a cost line: what that element costs you." },
             { name: "Sell amount", note: "On a cost line: what that element is being sold for. Reporting only — it does not change what the customer owes." },
             { name: "Cancellation charge", note: "On a cancelled trip: the non-refundable amount you kept." },
-            { name: "Monthly salary", note: "On an employee: gross pay for a full month. Payroll divides it by the days in the month to get a day rate." },
-            { name: "Deduction", note: "On a payroll line: unpaid days × day rate. Absences, leave beyond two days a month, and half a day per half-day." },
-            { name: "Net pay", note: "On a payroll line: monthly salary less the deduction. This is the amount posted to Expenses." },
+            { name: "Day rate", note: "On an employee: what they're paid for one day worked, entered directly. Payroll multiplies it by days in the month to get the gross salary." },
+            { name: "Paid leaves per month", note: "On an employee: how many leave days they can take a month before it costs them. Defaults to 2." },
+            { name: "Deduction", note: "On a payroll line: unpaid days × day rate. Absences, leave beyond that employee's monthly allowance, and half a day per half-day." },
+            { name: "Net pay", note: "On a payroll line: gross salary (day rate × days in the month) less the deduction. This is the amount posted to Expenses." },
             { name: "Advance", note: "The first receipt on a trip. Counts towards received like any other." },
             { name: "Received", note: "The sum of receipts that have not been voided." },
             { name: "Balance", note: "Grand total minus received — what is still to collect." },

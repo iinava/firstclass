@@ -384,6 +384,11 @@ export async function listPax(bookingId: string) {
     .orderBy(asc(bookingPax.createdAt))
 }
 
+export async function getPax(id: string) {
+  const [row] = await db.select().from(bookingPax).where(eq(bookingPax.id, id)).limit(1)
+  return row ?? null
+}
+
 export async function createPax(values: typeof bookingPax.$inferInsert) {
   const [row] = await db.insert(bookingPax).values(values).returning()
   return row

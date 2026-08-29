@@ -103,9 +103,9 @@ export const BulkAttendanceSchema = z.object({
 })
 
 export const AttendanceListParamsSchema = z.object({
-  date: z.string().optional(),
-  from: z.string().optional(),
-  to: z.string().optional(),
+  date: dateStringSchema.optional(),
+  from: dateStringSchema.optional(),
+  to: dateStringSchema.optional(),
   employeeId: z.string().optional(),
 })
 
