@@ -25,7 +25,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-import { Input } from "@/components/ui/input"
+import { DateRangeFilter } from "@/components/shared/date-range-filter"
 import { OptionSelect } from "@/components/shared/option-select"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
@@ -272,19 +272,14 @@ export function ExpensesView() {
             onValueChange={(value) => setFilter("categoryId", value)}
           />
 
-          <Input
-            type="date"
-            className="w-full sm:w-40"
-            aria-label="From date"
-            value={params.from ?? ""}
-            onChange={(event) => setFilter("from", event.target.value)}
-          />
-          <Input
-            type="date"
-            className="w-full sm:w-40"
-            aria-label="To date"
-            value={params.to ?? ""}
-            onChange={(event) => setFilter("to", event.target.value)}
+          <DateRangeFilter
+            from={params.from}
+            to={params.to}
+            onChange={(range) => {
+              setFilter("from", range.from ?? null)
+              setFilter("to", range.to ?? null)
+            }}
+            className="w-full sm:w-auto"
           />
         </div>
 

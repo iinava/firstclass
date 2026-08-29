@@ -10,6 +10,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import { DateRangeFilter } from "@/components/shared/date-range-filter"
 import { OptionSelect, optionsFrom } from "@/components/shared/option-select"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -39,7 +40,9 @@ export function TripsView() {
   // "startDate" must match the default in the page's server prefetch.
   const { params, setSearch, setFilter, setPage, setSort } = useListParams<{
     status: string
-  }>(["status"], "startDate")
+    from: string
+    to: string
+  }>(["status", "from", "to"], "startDate")
 
   const [searchInput, setSearchInput] = React.useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 350)
@@ -57,8 +60,18 @@ export function TripsView() {
       sortBy: params.sortBy,
       sortDir: params.sortDir,
       status: (params.status || undefined) as never,
+      from: params.from || undefined,
+      to: params.to || undefined,
     }),
-    [params.page, params.search, params.sortBy, params.sortDir, params.status]
+    [
+      params.page,
+      params.search,
+      params.sortBy,
+      params.sortDir,
+      params.status,
+      params.from,
+      params.to,
+    ]
   )
 
   const { data, isLoading, isFetching } = useQuery({
@@ -178,6 +191,17 @@ export function TripsView() {
             options={STATUS_FILTER_OPTIONS}
             value={params.status ?? ""}
             onValueChange={(value) => setFilter("status", value)}
+          />
+
+          <DateRangeFilter
+            from={params.from}
+            to={params.to}
+            onChange={(range) => {
+              setFilter("from", range.from ?? null)
+              setFilter("to", range.to ?? null)
+            }}
+            placeholder="Travel dates"
+            className="w-full sm:w-auto"
           />
         </div>
 
