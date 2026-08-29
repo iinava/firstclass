@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { Fragment } from "react"
 import {
   BanknoteIcon,
   BriefcaseIcon,
@@ -6,6 +7,7 @@ import {
   CalculatorIcon,
   CalendarCheckIcon,
   ChartNoAxesCombinedIcon,
+  CheckIcon,
   CircleHelpIcon,
   CompassIcon,
   ExternalLinkIcon,
@@ -33,6 +35,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { humanize } from "@/lib/format"
+import { PERMISSIONS, ROLE_LABELS, ROLE_PERMISSIONS } from "@/lib/rbac"
 
 export const metadata: Metadata = {
   title: "User Manual",
@@ -231,6 +235,52 @@ const ROLES: { name: string; sees: string }[] = [
     sees: "Read-only on Customers, Enquiries, Packages and Trips.",
   },
 ]
+
+/**
+ * Display order and grouping for the permission matrix below — built from
+ * `PERMISSIONS`/`ROLE_PERMISSIONS` in lib/rbac.ts rather than typed out by
+ * hand, so it can never drift from what the server actually enforces.
+ */
+const RESOURCE_LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  customer: "Customers",
+  lead: "Enquiries",
+  itinerary: "Packages",
+  booking: "Trips",
+  supplier: "Suppliers",
+  vehicle: "Fleet",
+  cost: "Trip costing",
+  payment: "Payments",
+  expense: "Expenses",
+  hrms: "Employee records",
+  attendance: "Attendance",
+  leave: "Leave",
+  payroll: "Payroll",
+  report: "Reports",
+  user: "User accounts",
+  settings: "Settings",
+  audit: "Audit log",
+}
+
+const ROLE_ORDER = Object.keys(ROLE_LABELS) as (keyof typeof ROLE_LABELS)[]
+
+const PERMISSION_GROUPS: { resource: string; permissions: (typeof PERMISSIONS)[number][] }[] =
+  (() => {
+    const order: string[] = []
+    const byResource = new Map<string, (typeof PERMISSIONS)[number][]>()
+    for (const permission of PERMISSIONS) {
+      const resource = permission.split(":")[0]
+      if (!byResource.has(resource)) {
+        order.push(resource)
+        byResource.set(resource, [])
+      }
+      byResource.get(resource)!.push(permission)
+    }
+    return order.map((resource) => ({
+      resource: RESOURCE_LABELS[resource] ?? humanize(resource),
+      permissions: byResource.get(resource)!,
+    }))
+  })()
 
 export default function InfoPage() {
   return (
@@ -1504,6 +1554,61 @@ export default function InfoPage() {
           checks the same permission on the server as well. A role that cannot
           open Reports cannot reach them by any other route either.
         </Note>
+
+        <div className="flex flex-col gap-3">
+          <SubHeading>Full permission matrix</SubHeading>
+          <p className="text-muted-foreground">
+            Every action in the system, and exactly which roles can do it. This
+            table is generated from the same permission list the server checks
+            on every request, so it can never fall out of date with what a role
+            actually gets.
+          </p>
+
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-44">Action</TableHead>
+                  {ROLE_ORDER.map((role) => (
+                    <TableHead key={role} className="text-center whitespace-nowrap">
+                      {ROLE_LABELS[role]}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {PERMISSION_GROUPS.map((group) => (
+                  <Fragment key={group.resource}>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableCell
+                        colSpan={ROLE_ORDER.length + 1}
+                        className="py-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+                      >
+                        {group.resource}
+                      </TableCell>
+                    </TableRow>
+                    {group.permissions.map((permission) => (
+                      <TableRow key={permission}>
+                        <TableCell className="whitespace-nowrap">
+                          {humanize(permission.split(":")[1])}
+                        </TableCell>
+                        {ROLE_ORDER.map((role) => (
+                          <TableCell key={role} className="text-center">
+                            {ROLE_PERMISSIONS[role].includes(permission) ? (
+                              <CheckIcon className="mx-auto size-4 text-emerald-600 dark:text-emerald-400" />
+                            ) : (
+                              <span className="text-muted-foreground/40">—</span>
+                            )}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       </Section>
 
       {/* ----------------------------------------------------------- not-yet */}
