@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { ActionFailure, defineAction } from "@/lib/action"
 import { diffChanges, recordAudit } from "@/lib/audit"
+import * as bookingService from "@/lib/services/booking.service"
 import * as service from "@/lib/services/vehicle.service"
 import { uuidSchema } from "@/validations/common.validation"
 import {
@@ -176,10 +177,12 @@ export const assignVehicle = defineAction({
   permission: "vehicle:update",
   schema: AssignVehicleSchema,
   handler: async (input, { session }) => {
+    const { addTransportCost, costDays, costPerDay, ...assignmentInput } = input
+
     const result = await service.assignVehicleAtomic({
-      ...input,
-      driverId: input.driverId ?? null,
-      startOdometer: input.startOdometer ?? null,
+      ...assignmentInput,
+      driverId: assignmentInput.driverId ?? null,
+      startOdometer: assignmentInput.startOdometer ?? null,
       createdBy: session.userId,
     })
     if (!result.ok) {
@@ -204,6 +207,36 @@ export const assignVehicle = defineAction({
       summary: "Assigned vehicle to trip",
       session,
     })
+
+    // The vehicle's cost is known the moment it's assigned — record it here
+    // instead of sending staff to "Add cost" to re-enter the same vehicle,
+    // dates and rate a second time.
+    if (addTransportCost && costPerDay) {
+      const vehicle = await service.getVehicle(input.vehicleId)
+      const item = await bookingService.createTripCost({
+        bookingId: input.bookingId,
+        category: "transport",
+        vehicleId: input.vehicleId,
+        description: vehicle
+          ? `${vehicle.regNumber} — ${costDays} day${costDays === 1 ? "" : "s"} hire`
+          : "Vehicle hire",
+        serviceDate: input.startDate,
+        quantity: costDays,
+        unitCost: costPerDay,
+        costAmount: costPerDay * costDays,
+        sellAmount: 0,
+        status: "planned",
+        createdBy: session.userId,
+      })
+
+      await recordAudit({
+        entity: "trip_cost_items",
+        entityId: item.id,
+        action: "create",
+        summary: `Added transport cost for ${vehicle?.regNumber ?? "vehicle"}`,
+        session,
+      })
+    }
 
     revalidatePath(`/admin/trips/${input.bookingId}`)
     return assignment

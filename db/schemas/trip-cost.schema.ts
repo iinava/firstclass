@@ -63,7 +63,7 @@ export const tripCostItems = pgTable(
     /** Set for transport lines so vehicle-wise expense reports work. */
     vehicleId: uuid("vehicle_id").references(() => vehicles.id),
 
-    description: text("description").notNull(),
+    description: text("description"),
     serviceDate: date("service_date"),
     /** Nights for hotels, days for vehicles, heads for tickets. */
     quantity: integer("quantity").notNull().default(1),

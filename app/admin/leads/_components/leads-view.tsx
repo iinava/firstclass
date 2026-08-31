@@ -58,8 +58,10 @@ import { TripFormDialog } from "@/app/admin/trips/_components/trip-form-dialog"
 const FILTER_KEYS = ["status", "priority", "assignedTo", "from", "to"] as const
 const PAGE_SIZE = 25
 
+// "" excludes won enquiries by default — see listLeads. Selecting "Won"
+// explicitly still shows them.
 const STATUS_FILTER_OPTIONS = [
-  { value: "", label: "All stages" },
+  { value: "", label: "All open stages" },
   ...optionsFrom(LEAD_STATUSES, LEAD_STATUS_LABELS),
 ]
 
@@ -218,15 +220,13 @@ export function LeadsView() {
             onClick={(event) => event.stopPropagation()}
           >
             {/* Winning the enquiry is the whole point of this table, so it is a
-                visible button rather than a menu item three clicks deep. */}
-            {row.status !== "lost" && (
-              <Button
-                variant={row.status === "won" ? "ghost" : "outline"}
-                size="sm"
-                onClick={() => setConvertingLead(row)}
-              >
+                visible button rather than a menu item three clicks deep. A won
+                enquiry has already become a trip — there's nothing left to
+                convert, so the button simply disappears. */}
+            {row.status !== "lost" && row.status !== "won" && (
+              <Button variant="outline" size="sm" onClick={() => setConvertingLead(row)}>
                 <RouteIcon data-icon="inline-start" />
-                {row.status === "won" ? "New trip" : "Convert"}
+                Convert
               </Button>
             )}
 

@@ -1,0 +1,1 @@
+ALTER TABLE "trip_cost_items" ALTER COLUMN "description" DROP NOT NULL;

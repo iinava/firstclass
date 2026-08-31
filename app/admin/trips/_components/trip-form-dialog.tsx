@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { FieldGroup } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
-import { CustomerPicker } from "@/components/shared/customer-picker"
+import { CustomerCombobox } from "@/components/shared/customer-combobox"
 import {
   DateField,
   MoneyField,
@@ -30,6 +31,7 @@ import {
   BookingFormSchema,
   type BookingFormValues,
 } from "@/validations/booking.validation"
+import type { Booking } from "@/db/schemas/booking.schema"
 import type { BookingListRow } from "@/lib/services/booking.service"
 import { fetchAssignableUsers } from "@/app/admin/leads/actions"
 import { fetchPackageOptions } from "@/app/admin/packages/actions"
@@ -182,7 +184,9 @@ function TripForm({
     return { ...EMPTY, customerId: presetCustomerId ?? "" }
   }, [booking, presetCustomerId, fromLead])
 
-  const { form, onSubmit, isPending } = useCrudForm<BookingFormValues>({
+  const router = useRouter()
+
+  const { form, onSubmit, isPending } = useCrudForm<BookingFormValues, Booking>({
     schema: BookingFormSchema,
     defaultValues: defaultValues as never,
     action: (values) =>
@@ -195,7 +199,12 @@ function TripForm({
         ? "Enquiry converted to trip"
         : "Trip created",
     invalidate: [qk.bookings.all, qk.leads.all, qk.followups.all, qk.reports.all],
-    onSuccess: onDone,
+    onSuccess: (data) => {
+      onDone()
+      // Converting an enquiry is the end of that workflow — land the agent
+      // straight on the new trip instead of leaving them on the enquiry list.
+      if (fromLead) router.push(`/admin/trips/${data.id}`)
+    },
   })
 
   const values = form.watch()
@@ -240,7 +249,7 @@ function TripForm({
 
       <form id="trip-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
         <FieldGroup>
-          <CustomerPicker control={form.control} name="customerId" />
+          <CustomerCombobox control={form.control} name="customerId" />
 
           <SelectField
             control={form.control}

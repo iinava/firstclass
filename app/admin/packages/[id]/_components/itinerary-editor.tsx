@@ -289,7 +289,12 @@ export function ItineraryEditor({ itineraryId }: { itineraryId: string }) {
                       </p>
                     )}
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                      {day.stayNote && <span>Stay: {day.stayNote}</span>}
+                      {(day.hotelName || day.stayNote) && (
+                        <span>
+                          Stay:{" "}
+                          {[day.hotelName, day.stayNote].filter(Boolean).join(" — ")}
+                        </span>
+                      )}
                       {(day.breakfast || day.lunch || day.dinner) && (
                         <span className="inline-flex items-center gap-1">
                           <UtensilsIcon className="size-3" />

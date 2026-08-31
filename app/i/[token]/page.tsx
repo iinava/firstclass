@@ -262,12 +262,12 @@ export default async function SharedItineraryPage({
                         </p>
                       )}
 
-                      {(day.stayNote || dayMeals.length > 0) && (
+                      {(day.hotelName || day.stayNote || dayMeals.length > 0) && (
                         <div className="mt-4 flex flex-wrap gap-2 border-t pt-3">
-                          {day.stayNote && (
+                          {(day.hotelName || day.stayNote) && (
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
                               <BedDoubleIcon className="size-3.5" />
-                              {day.stayNote}
+                              {[day.hotelName, day.stayNote].filter(Boolean).join(" — ")}
                             </span>
                           )}
                           {dayMeals.length > 0 && (

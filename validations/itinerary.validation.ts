@@ -95,6 +95,7 @@ export const ItineraryDaySchema = z.object({
   dayNumber: z.coerce.number().int().min(1).max(90),
   title: requiredText("Day title", 200),
   description: optionalText(4000),
+  hotelSupplierId: uuidSchema.nullable().optional(),
   stayNote: optionalText(300),
   breakfast: z.boolean().default(false),
   lunch: z.boolean().default(false),

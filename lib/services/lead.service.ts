@@ -10,6 +10,7 @@ import {
   inArray,
   isNull,
   lte,
+  ne,
   or,
   sql,
 } from "drizzle-orm"
@@ -110,7 +111,11 @@ export async function listLeads(
       )!
     )
   }
+  // A won enquiry has already become a trip — it's done, so it disappears
+  // from the default pipeline view. Staff can still reach it by explicitly
+  // filtering the stage to "Won".
   if (status) filters.push(eq(leads.status, status))
+  else filters.push(ne(leads.status, "won"))
   if (priority) filters.push(eq(leads.priority, priority))
   if (source) filters.push(eq(leads.source, source))
   if (assignedTo) filters.push(eq(leads.assignedTo, assignedTo))

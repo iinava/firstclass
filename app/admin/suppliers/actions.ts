@@ -27,7 +27,9 @@ export const fetchSuppliers = defineAction({
 export const fetchSupplierOptions = defineAction({
   name: "fetchSupplierOptions",
   permission: "supplier:view",
-  schema: z.object({ type: supplierTypeSchema.optional() }),
+  schema: z.object({
+    type: z.union([supplierTypeSchema, z.array(supplierTypeSchema)]).optional(),
+  }),
   handler: async ({ type }) => service.getSupplierOptions(type),
 })
 

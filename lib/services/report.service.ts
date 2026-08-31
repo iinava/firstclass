@@ -230,35 +230,83 @@ export async function getSupplierSpend(params: ReportParams) {
 export async function getVehicleExpense(params: ReportParams) {
   const { from, to } = resolveRange(params)
 
-  const rows = await db
-    .select({
-      vehicleId: vehicles.id,
-      regNumber: vehicles.regNumber,
-      type: vehicles.type,
-      ownership: vehicles.ownership,
-      tripCost: sql<number>`coalesce(sum(${tripCostItems.costAmount}), 0)::bigint`,
-      trips: sql<number>`count(distinct ${tripCostItems.bookingId})::int`,
-    })
-    .from(tripCostItems)
-    .innerJoin(vehicles, eq(vehicles.id, tripCostItems.vehicleId))
-    .innerJoin(bookings, eq(bookings.id, tripCostItems.bookingId))
-    .where(
-      and(
-        isNull(tripCostItems.deletedAt),
-        sql`${tripCostItems.status} <> 'cancelled'`,
-        gte(bookings.startDate, from),
-        lte(bookings.startDate, to)
+  const [tripRows, directRows] = await Promise.all([
+    db
+      .select({
+        vehicleId: vehicles.id,
+        regNumber: vehicles.regNumber,
+        type: vehicles.type,
+        ownership: vehicles.ownership,
+        tripCost: sql<number>`coalesce(sum(${tripCostItems.costAmount}), 0)::bigint`,
+        trips: sql<number>`count(distinct ${tripCostItems.bookingId})::int`,
+      })
+      .from(tripCostItems)
+      .innerJoin(vehicles, eq(vehicles.id, tripCostItems.vehicleId))
+      .innerJoin(bookings, eq(bookings.id, tripCostItems.bookingId))
+      .where(
+        and(
+          isNull(tripCostItems.deletedAt),
+          sql`${tripCostItems.status} <> 'cancelled'`,
+          gte(bookings.startDate, from),
+          lte(bookings.startDate, to)
+        )
       )
-    )
-    .groupBy(vehicles.id, vehicles.regNumber, vehicles.type, vehicles.ownership)
-    .orderBy(sql`sum(${tripCostItems.costAmount}) desc`)
-    .limit(50)
+      .groupBy(vehicles.id, vehicles.regNumber, vehicles.type, vehicles.ownership),
 
-  return rows.map((r) => ({
-    ...r,
-    tripCost: Number(r.tripCost),
-    costPerTrip: r.trips > 0 ? Number(r.tripCost) / r.trips : 0,
-  }))
+    // A vehicle also racks up cost off any trip — insurance, repairs, a
+    // service — logged as a general expense against the vehicle rather than
+    // a booking. Left out of this report, "running cost per vehicle" was
+    // undercounting every vehicle with off-trip spend.
+    db
+      .select({
+        vehicleId: vehicles.id,
+        directCost: sql<number>`coalesce(sum(${expenses.amount}), 0)::bigint`,
+      })
+      .from(expenses)
+      .innerJoin(vehicles, eq(vehicles.id, expenses.vehicleId))
+      .where(
+        and(
+          isNull(expenses.deletedAt),
+          gte(expenses.spentAt, from),
+          lte(expenses.spentAt, to)
+        )
+      )
+      .groupBy(vehicles.id),
+  ])
+
+  const directByVehicle = new Map(directRows.map((r) => [r.vehicleId, Number(r.directCost)]))
+  const seen = new Set(tripRows.map((r) => r.vehicleId))
+
+  const merged = tripRows.map((r) => {
+    const directCost = directByVehicle.get(r.vehicleId) ?? 0
+    const tripCost = Number(r.tripCost) + directCost
+    return {
+      ...r,
+      tripCost,
+      costPerTrip: r.trips > 0 ? tripCost / r.trips : 0,
+    }
+  })
+
+  // A vehicle with off-trip spend but no trip cost lines in this window
+  // still needs its own row — otherwise its cost is silently dropped.
+  for (const row of directRows) {
+    if (seen.has(row.vehicleId)) continue
+    const vehicle = await db
+      .select({ regNumber: vehicles.regNumber, type: vehicles.type, ownership: vehicles.ownership })
+      .from(vehicles)
+      .where(eq(vehicles.id, row.vehicleId))
+      .limit(1)
+    if (!vehicle[0]) continue
+    merged.push({
+      vehicleId: row.vehicleId,
+      ...vehicle[0],
+      trips: 0,
+      tripCost: Number(row.directCost),
+      costPerTrip: 0,
+    })
+  }
+
+  return merged.sort((a, b) => b.tripCost - a.tripCost).slice(0, 50)
 }
 
 /** Sales performance: enquiries handled, won, and revenue booked per person. */

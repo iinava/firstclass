@@ -14,6 +14,7 @@ import {
 import { actor, money, pk, softDelete, timestamps } from "./_shared"
 import { customers } from "./customer.schema"
 import { leads } from "./lead.schema"
+import { suppliers } from "./supplier.schema"
 import { users } from "./user.schema"
 
 /**
@@ -114,7 +115,9 @@ export const itineraryDays = pgTable(
     dayNumber: integer("day_number").notNull(),
     title: text("title").notNull(),
     description: text("description"),
-    /** Free-text stay note, e.g. "Overnight at Tea Valley Resort, Munnar". */
+    /** The hotel/homestay/resort for this night — a supplier record, not free text. */
+    hotelSupplierId: uuid("hotel_supplier_id").references(() => suppliers.id),
+    /** Optional extra detail, e.g. "Deluxe room with balcony". */
     stayNote: text("stay_note"),
     breakfast: boolean("breakfast").notNull().default(false),
     lunch: boolean("lunch").notNull().default(false),

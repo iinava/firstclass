@@ -151,12 +151,35 @@ export const COST_CATEGORY_LABELS: Record<(typeof COST_CATEGORIES)[number], stri
   misc: "Miscellaneous",
 }
 
+/**
+ * "Qty / nights" meant something for a hotel line and nothing for a flat
+ * toll or fuel line. Each category gets a quantity unit that actually applies
+ * to it, or no quantity field at all when the cost is inherently one line.
+ */
+export const COST_QUANTITY_CONFIG: Record<
+  (typeof COST_CATEGORIES)[number],
+  { label: string; show: boolean }
+> = {
+  hotel: { label: "Nights", show: true },
+  transport: { label: "Days", show: true },
+  flight: { label: "Tickets", show: true },
+  train: { label: "Tickets", show: true },
+  guide: { label: "Days", show: true },
+  activity: { label: "Pax", show: true },
+  meal: { label: "Pax", show: true },
+  permit: { label: "Permits", show: true },
+  driver_allowance: { label: "Days", show: true },
+  fuel: { label: "Qty", show: false },
+  toll_parking: { label: "Qty", show: false },
+  misc: { label: "Qty", show: false },
+}
+
 export const TripCostFormSchema = z.object({
   bookingId: uuidSchema,
   category: costCategorySchema,
   supplierId: uuidSchema.nullable().optional(),
   vehicleId: uuidSchema.nullable().optional(),
-  description: requiredText("Description", 300),
+  description: optionalText(300),
   serviceDate: optionalDateString,
   quantity: z.coerce.number().int().min(1, "At least 1").max(9999).default(1),
   unitCost: moneySchema,
@@ -176,6 +199,7 @@ export const TripDaySchema = z.object({
   dayNumber: z.coerce.number().int().min(1).max(90),
   title: requiredText("Day title", 200),
   description: optionalText(4000),
+  hotelSupplierId: uuidSchema.nullable().optional(),
   stayNote: optionalText(300),
   breakfast: z.boolean().default(false),
   lunch: z.boolean().default(false),

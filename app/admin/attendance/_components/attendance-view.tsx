@@ -4,6 +4,7 @@ import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { CheckIcon, PlusIcon, SaveIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Input } from "@/components/ui/input"
 import { OptionSelect, optionsFrom } from "@/components/shared/option-select"
 import { Spinner } from "@/components/ui/spinner"
@@ -388,12 +389,11 @@ function AttendanceRegister({
           <label htmlFor="attendance-date" className="text-xs text-muted-foreground">
             Date
           </label>
-          <Input
+          <DatePicker
             id="attendance-date"
-            type="date"
             className="w-44"
             value={date}
-            onChange={(event) => onDateChange(event.target.value)}
+            onChange={onDateChange}
           />
         </div>
 

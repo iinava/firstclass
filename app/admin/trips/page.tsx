@@ -46,7 +46,7 @@ async function TripsLoader({
     page: raw.page ?? 1,
     pageSize: 25,
     search: str("search"),
-    sortBy: str("sortBy") ?? "startDate",
+    sortBy: str("sortBy") ?? "createdAt",
     sortDir: raw.sortDir === "asc" ? "asc" : "desc",
     status: str("status"),
     from: str("from"),

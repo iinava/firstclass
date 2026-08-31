@@ -7,6 +7,7 @@ import {
   type FieldPath,
   type FieldValues,
 } from "react-hook-form"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   Field,
   FieldDescription,
@@ -130,7 +131,35 @@ export function NumberField<T extends FieldValues>({
 }
 
 export function DateField<T extends FieldValues>(props: BaseFieldProps<T>) {
-  return <TextField {...props} type="date" />
+  const id = `field-${props.name}`
+  return (
+    <Controller
+      control={props.control}
+      name={props.name}
+      render={({ field, fieldState }) => (
+        <Field
+          data-invalid={fieldState.invalid}
+          data-disabled={props.disabled}
+          className={props.className}
+        >
+          <FieldLabel htmlFor={id}>{props.label}</FieldLabel>
+          <DatePicker
+            id={id}
+            value={field.value as string | null}
+            onChange={field.onChange}
+            onBlur={field.onBlur}
+            disabled={props.disabled}
+            placeholder={props.placeholder}
+            aria-invalid={fieldState.invalid}
+          />
+          {props.description && !fieldState.error && (
+            <FieldDescription>{props.description}</FieldDescription>
+          )}
+          {fieldState.error && <FieldError errors={[fieldState.error]} />}
+        </Field>
+      )}
+    />
+  )
 }
 
 export function DateTimeField<T extends FieldValues>(props: BaseFieldProps<T>) {

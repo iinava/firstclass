@@ -37,12 +37,11 @@ const STATUS_FILTER_OPTIONS = [
 export function TripsView() {
   const router = useRouter()
 
-  // "startDate" must match the default in the page's server prefetch.
   const { params, setSearch, setFilter, setPage, setSort } = useListParams<{
     status: string
     from: string
     to: string
-  }>(["status", "from", "to"], "startDate")
+  }>(["status", "from", "to"])
 
   const [searchInput, setSearchInput] = React.useState(params.search)
   const debouncedSearch = useDebouncedValue(searchInput, 350)

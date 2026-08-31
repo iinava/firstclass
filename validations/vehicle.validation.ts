@@ -97,6 +97,12 @@ export const AssignVehicleSchema = z
     endDate: dateStringSchema,
     startOdometer: z.coerce.number().int().min(0).nullable().optional(),
     notes: optionalText(300),
+    // Assigning a vehicle is the moment its cost is known — recording it here
+    // instead of forcing a separate trip to "Add cost" re-typing the same
+    // vehicle, dates and rate.
+    addTransportCost: z.boolean().default(true),
+    costDays: z.coerce.number().int().min(1).default(1),
+    costPerDay: optionalMoneySchema,
   })
   .refine((v) => v.endDate >= v.startDate, {
     message: "End date cannot be before the start date",
@@ -123,3 +129,4 @@ export type VehicleFormValues = z.input<typeof VehicleFormSchema>
 export type DriverFormValues = z.input<typeof DriverFormSchema>
 export type VehicleListParams = z.output<typeof VehicleListParamsSchema>
 export type AssignVehicleValues = z.input<typeof AssignVehicleSchema>
+export type UpdateAssignmentValues = z.input<typeof UpdateAssignmentSchema>

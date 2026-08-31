@@ -1,5 +1,5 @@
 import "server-only"
-import { and, asc, count, desc, eq, ilike, isNull, or, sql } from "drizzle-orm"
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm"
 import { db } from "@/db/drizzle"
 import {
   supplierRates,
@@ -123,8 +123,16 @@ export async function getSupplier(id: string): Promise<Supplier | null> {
   return row ?? null
 }
 
-/** Lightweight list for the supplier picker on trip cost lines. */
-export async function getSupplierOptions(type?: Supplier["type"]) {
+/** Lightweight list for the supplier picker on trip cost lines and hotel selects. */
+export async function getSupplierOptions(
+  type?: Supplier["type"] | Supplier["type"][]
+) {
+  const typeFilter = Array.isArray(type)
+    ? inArray(suppliers.type, type)
+    : type
+      ? eq(suppliers.type, type)
+      : undefined
+
   return db
     .select({
       id: suppliers.id,
@@ -133,9 +141,7 @@ export async function getSupplierOptions(type?: Supplier["type"]) {
       city: suppliers.city,
     })
     .from(suppliers)
-    .where(
-      and(alive, eq(suppliers.isActive, true), type ? eq(suppliers.type, type) : undefined)
-    )
+    .where(and(alive, eq(suppliers.isActive, true), typeFilter))
     .orderBy(asc(suppliers.name))
     .limit(500)
 }

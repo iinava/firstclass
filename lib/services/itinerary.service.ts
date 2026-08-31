@@ -9,6 +9,7 @@ import {
   type Itinerary,
   type ItineraryDay,
 } from "@/db/schemas/itinerary.schema"
+import { suppliers } from "@/db/schemas/supplier.schema"
 import type { PaginatedResult } from "@/validations/common.validation"
 import type { ItineraryListParams } from "@/validations/itinerary.validation"
 
@@ -134,17 +135,41 @@ export async function getItinerary(id: string): Promise<Itinerary | null> {
   return row ?? null
 }
 
+export interface ItineraryDayWithHotel extends ItineraryDay {
+  hotelName: string | null
+}
+
+/** Days joined with the hotel supplier's name, for anywhere a day is displayed. */
+async function listDaysWithHotel(itineraryId: string): Promise<ItineraryDayWithHotel[]> {
+  return db
+    .select({
+      id: itineraryDays.id,
+      itineraryId: itineraryDays.itineraryId,
+      dayNumber: itineraryDays.dayNumber,
+      title: itineraryDays.title,
+      description: itineraryDays.description,
+      hotelSupplierId: itineraryDays.hotelSupplierId,
+      stayNote: itineraryDays.stayNote,
+      breakfast: itineraryDays.breakfast,
+      lunch: itineraryDays.lunch,
+      dinner: itineraryDays.dinner,
+      createdAt: itineraryDays.createdAt,
+      updatedAt: itineraryDays.updatedAt,
+      hotelName: suppliers.name,
+    })
+    .from(itineraryDays)
+    .leftJoin(suppliers, eq(suppliers.id, itineraryDays.hotelSupplierId))
+    .where(eq(itineraryDays.itineraryId, itineraryId))
+    .orderBy(asc(itineraryDays.dayNumber))
+}
+
 /** Full document for the public share page and the editor preview. */
 export async function getItineraryDetail(id: string) {
   const itinerary = await getItinerary(id)
   if (!itinerary) return null
 
   const [days, images] = await Promise.all([
-    db
-      .select()
-      .from(itineraryDays)
-      .where(eq(itineraryDays.itineraryId, id))
-      .orderBy(asc(itineraryDays.dayNumber)),
+    listDaysWithHotel(id),
     db
       .select()
       .from(itineraryImages)
@@ -201,11 +226,7 @@ export async function getItineraryByShareToken(token: string) {
   if (!itinerary) return null
 
   const [days, images] = await Promise.all([
-    db
-      .select()
-      .from(itineraryDays)
-      .where(eq(itineraryDays.itineraryId, itinerary.id))
-      .orderBy(asc(itineraryDays.dayNumber)),
+    listDaysWithHotel(itinerary.id),
     db
       .select()
       .from(itineraryImages)
@@ -429,6 +450,7 @@ export async function upsertDay(values: typeof itineraryDays.$inferInsert) {
       set: {
         title: values.title,
         description: values.description,
+        hotelSupplierId: values.hotelSupplierId,
         stayNote: values.stayNote,
         breakfast: values.breakfast,
         lunch: values.lunch,
@@ -535,6 +557,7 @@ export async function cloneItinerary(
         dayNumber: day.dayNumber,
         title: day.title,
         description: day.description,
+        hotelSupplierId: day.hotelSupplierId,
         stayNote: day.stayNote,
         breakfast: day.breakfast,
         lunch: day.lunch,

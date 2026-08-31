@@ -2,6 +2,7 @@ import "server-only"
 import { and, asc, count, desc, eq, ilike, isNull, ne, or, sql } from "drizzle-orm"
 import { db, txDb, type Tx } from "@/db/drizzle"
 import { bookings } from "@/db/schemas/booking.schema"
+import { expenses } from "@/db/schemas/accounts.schema"
 import { suppliers } from "@/db/schemas/supplier.schema"
 import { tripCostItems } from "@/db/schemas/trip-cost.schema"
 import {
@@ -78,11 +79,18 @@ export async function listVehicles(
         select count(*)::int from ${vehicleAssignments}
         where ${vehicleAssignments.vehicleId} = "vehicles"."id"
       )`,
+      // Money against a vehicle comes in two disconnected forms — a trip cost
+      // line, or a general expense (insurance, repairs) logged off any trip —
+      // both must count toward what this vehicle actually costs to run.
       totalExpense: sql<number>`coalesce((
         select sum(${tripCostItems.costAmount}) from ${tripCostItems}
         where ${tripCostItems.vehicleId} = "vehicles"."id"
           and ${tripCostItems.deletedAt} is null
           and ${tripCostItems.status} <> 'cancelled'
+      ), 0)::bigint + coalesce((
+        select sum(${expenses.amount}) from ${expenses}
+        where ${expenses.vehicleId} = "vehicles"."id"
+          and ${expenses.deletedAt} is null
       ), 0)::bigint`,
     })
     .from(vehicles)
@@ -122,6 +130,8 @@ export async function getVehicleOptions() {
       type: vehicles.type,
       seatingCapacity: vehicles.seatingCapacity,
       ownership: vehicles.ownership,
+      ratePerKm: vehicles.ratePerKm,
+      ratePerDay: vehicles.ratePerDay,
       mileageKmpl: vehicles.mileageKmpl,
       fuelPricePerLitre: vehicles.fuelPricePerLitre,
     })

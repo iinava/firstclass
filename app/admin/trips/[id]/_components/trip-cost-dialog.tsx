@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { differenceInCalendarDays } from "date-fns"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,18 +25,21 @@ import {
 } from "@/components/shared/form-fields"
 import { unwrapAction } from "@/hooks/use-action-mutation"
 import { useCrudForm } from "@/hooks/use-crud-form"
+import { parseDate } from "@/lib/format"
 import { formatMoney, toPaise, toRupees } from "@/lib/money"
 import { qk } from "@/lib/query-keys"
+import { cn } from "@/lib/utils"
 import {
   COST_CATEGORIES,
   COST_CATEGORY_LABELS,
+  COST_QUANTITY_CONFIG,
   TripCostFormSchema,
   type TripCostValues,
 } from "@/validations/booking.validation"
 import type { TripCostRow } from "@/lib/services/booking.service"
-import { fetchSupplierOptions } from "@/app/admin/suppliers/actions"
+import { fetchSupplierOptions, fetchSupplierRates } from "@/app/admin/suppliers/actions"
 import { fetchAssignments, fetchVehicleOptions } from "@/app/admin/fleet/actions"
-import { createTripCost, updateTripCost } from "../../actions"
+import { createTripCost, fetchTripDays, updateTripCost } from "../../actions"
 
 const CATEGORY_OPTIONS = optionsFrom(COST_CATEGORIES, COST_CATEGORY_LABELS)
 
@@ -132,8 +136,50 @@ function TripCostForm({
   })
 
   const values = form.watch()
-  const lineTotal = toPaise(values.unitCost as string) * Number(values.quantity || 0)
   const showVehicle = VEHICLE_CATEGORIES.has(values.category as string)
+
+  // The supplier's own rate card is exactly what "unit cost" and
+  // "description" should come from — without this, staff re-type a number
+  // that's already sitting on the supplier record.
+  const supplierId = values.supplierId as string | null | undefined
+  const { data: supplierRates } = useQuery({
+    queryKey: qk.suppliers.rates(supplierId ?? ""),
+    queryFn: async () => unwrapAction(await fetchSupplierRates({ supplierId: supplierId! })),
+    enabled: !showVehicle && Boolean(supplierId),
+    staleTime: 60 * 1000,
+  })
+
+  // The hotel for each night is already picked on the Itinerary tab — a
+  // "hotel" cost line billing a different property with nothing tying the
+  // two together is how the two records quietly drift apart.
+  const { data: tripDays } = useQuery({
+    queryKey: qk.bookings.days(bookingId),
+    queryFn: async () => unwrapAction(await fetchTripDays({ bookingId })),
+    enabled: values.category === "hotel",
+    staleTime: 60 * 1000,
+  })
+  const dayHotels = React.useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const day of tripDays ?? []) {
+      if (day.hotelSupplierId && day.hotelName) seen.set(day.hotelSupplierId, day.hotelName)
+    }
+    return [...seen.entries()].map(([id, name]) => ({ id, name }))
+  }, [tripDays])
+  const quantityConfig =
+    COST_QUANTITY_CONFIG[values.category as keyof typeof COST_QUANTITY_CONFIG]
+  const lineTotal = quantityConfig?.show
+    ? toPaise(values.unitCost as string) * Number(values.quantity || 0)
+    : toPaise(values.unitCost as string)
+
+  // A category with no meaningful quantity (a toll, a flat misc charge) is
+  // always exactly one line — force it back to 1 if a previous category left
+  // some other value sitting in the field.
+  React.useEffect(() => {
+    if (!quantityConfig?.show && values.quantity !== 1) {
+      form.setValue("quantity", 1, { shouldValidate: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quantityConfig?.show])
 
   // Fuel cost = distance driven ÷ mileage (km/l) × fuel price per litre. Only
   // computable once the vehicle has a logged odometer reading for this trip.
@@ -152,6 +198,39 @@ function TripCostForm({
     const cost = Math.round(litres * vehicle.fuelPricePerLitre)
     return { distanceKm, litres, cost }
   }, [values.category, values.vehicleId, vehicles, assignments])
+
+  // Transport cost = the vehicle's own standing day-rate × however many days
+  // it's actually assigned to this trip — the same numbers already sitting on
+  // the vehicle record and its assignment, so picking the vehicle should be
+  // enough instead of retyping both by hand.
+  const transportSuggestion = React.useMemo(() => {
+    if (values.category !== "transport" || !values.vehicleId) return null
+    const vehicle = vehicles?.find((v) => v.id === values.vehicleId)
+    if (!vehicle?.ratePerDay) return null
+
+    const assignment = assignments?.find((a) => a.vehicleId === values.vehicleId)
+    const start = parseDate(assignment?.startDate)
+    const end = parseDate(assignment?.endDate)
+    const days =
+      start && end ? Math.max(1, differenceInCalendarDays(end, start) + 1) : 1
+
+    return { days, ratePerDay: vehicle.ratePerDay, cost: vehicle.ratePerDay * days }
+  }, [values.category, values.vehicleId, vehicles, assignments])
+
+  // Applies as soon as the vehicle is picked, not only after a manual "Use
+  // this" click — a blank quantity/rate right after selecting the vehicle
+  // is exactly the "nothing happened" gap this closes. Still overridable —
+  // it only fires while the fields are untouched.
+  React.useEffect(() => {
+    if (!transportSuggestion) return
+    if (Number(values.quantity) === 1 && !values.unitCost) {
+      form.setValue("quantity", transportSuggestion.days, { shouldDirty: true })
+      form.setValue("unitCost", String(toRupees(transportSuggestion.ratePerDay)), {
+        shouldDirty: true,
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transportSuggestion?.days, transportSuggestion?.ratePerDay])
 
   return (
     <>
@@ -209,6 +288,23 @@ function TripCostForm({
             <DateField control={form.control} name="serviceDate" label="Service date" />
           </div>
 
+          {values.category === "hotel" && dayHotels.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Already on the itinerary:</span>
+              {dayHotels.map((hotel) => (
+                <Button
+                  key={hotel.id}
+                  type="button"
+                  size="sm"
+                  variant={values.supplierId === hotel.id ? "default" : "outline"}
+                  onClick={() => form.setValue("supplierId", hotel.id, { shouldDirty: true })}
+                >
+                  {hotel.name}
+                </Button>
+              ))}
+            </div>
+          )}
+
           <TextField
             control={form.control}
             name="description"
@@ -216,6 +312,28 @@ function TripCostForm({
             placeholder="2 deluxe rooms, Tea Valley Resort"
             autoFocus
           />
+
+          {!isEdit && supplierRates && supplierRates.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Rate card:</span>
+              {supplierRates.map((rate) => (
+                <Button
+                  key={rate.id}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    form.setValue("description", rate.title, { shouldDirty: true })
+                    form.setValue("unitCost", String(toRupees(rate.rate)), {
+                      shouldDirty: true,
+                    })
+                  }}
+                >
+                  {rate.title} — {formatMoney(rate.rate)} {rate.unit}
+                </Button>
+              ))}
+            </div>
+          )}
 
           {mileageSuggestion && (
             <div className="flex items-center justify-between rounded-lg border border-dashed px-4 py-3 text-sm">
@@ -242,14 +360,45 @@ function TripCostForm({
             </div>
           )}
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <NumberField
+          {transportSuggestion && (
+            <div className="flex items-center justify-between rounded-lg border border-dashed px-4 py-3 text-sm">
+              <span className="text-muted-foreground">
+                {transportSuggestion.days} day{transportSuggestion.days === 1 ? "" : "s"} ×{" "}
+                {formatMoney(transportSuggestion.ratePerDay)}/day — est.{" "}
+                {formatMoney(transportSuggestion.cost)}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  form.setValue("quantity", transportSuggestion.days, { shouldDirty: true })
+                  form.setValue(
+                    "unitCost",
+                    String(toRupees(transportSuggestion.ratePerDay)),
+                    { shouldDirty: true }
+                  )
+                }}
+              >
+                Use this
+              </Button>
+            </div>
+          )}
+
+          <div className={cn("grid gap-4", quantityConfig?.show ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+            {quantityConfig?.show && (
+              <NumberField
+                control={form.control}
+                name="quantity"
+                label={quantityConfig.label}
+                min={1}
+              />
+            )}
+            <MoneyField
               control={form.control}
-              name="quantity"
-              label="Qty / nights"
-              min={1}
+              name="unitCost"
+              label={quantityConfig?.show ? "Unit cost (₹)" : "Amount (₹)"}
             />
-            <MoneyField control={form.control} name="unitCost" label="Unit cost (₹)" />
             <MoneyField
               control={form.control}
               name="sellAmount"

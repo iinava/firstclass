@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Controller } from "react-hook-form"
+import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -14,14 +15,22 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
-import { NumberField, TextField, TextareaField } from "@/components/shared/form-fields"
+import {
+  NumberField,
+  SelectField,
+  TextField,
+  TextareaField,
+} from "@/components/shared/form-fields"
+import { unwrapAction } from "@/hooks/use-action-mutation"
 import { useCrudForm } from "@/hooks/use-crud-form"
 import { qk } from "@/lib/query-keys"
 import {
   ItineraryDaySchema,
   type ItineraryDayValues,
 } from "@/validations/itinerary.validation"
+import { HOTEL_SUPPLIER_TYPES } from "@/validations/supplier.validation"
 import type { ItineraryDay } from "@/db/schemas/itinerary.schema"
+import { fetchSupplierOptions } from "@/app/admin/suppliers/actions"
 import { saveDay, updateDay } from "../../actions"
 
 export function DayEditorDialog({
@@ -70,12 +79,20 @@ function DayForm({
 }) {
   const isEdit = Boolean(day)
 
+  const { data: hotels } = useQuery({
+    queryKey: qk.suppliers.options([...HOTEL_SUPPLIER_TYPES]),
+    queryFn: async () =>
+      unwrapAction(await fetchSupplierOptions({ type: [...HOTEL_SUPPLIER_TYPES] })),
+    staleTime: 5 * 60 * 1000,
+  })
+
   const defaultValues = React.useMemo<ItineraryDayValues>(
     () => ({
       itineraryId,
       dayNumber: day?.dayNumber ?? nextDayNumber,
       title: day?.title ?? "",
       description: day?.description ?? "",
+      hotelSupplierId: day?.hotelSupplierId ?? null,
       stayNote: day?.stayNote ?? "",
       breakfast: day?.breakfast ?? false,
       lunch: day?.lunch ?? false,
@@ -132,12 +149,26 @@ function DayForm({
             placeholder="Pick up from Kochi airport, drive through the tea plantations, stop at Cheeyappara waterfalls…"
           />
 
-          <TextField
-            control={form.control}
-            name="stayNote"
-            label="Overnight stay"
-            placeholder="Tea Valley Resort, Munnar"
-          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SelectField
+              control={form.control}
+              name="hotelSupplierId"
+              label="Overnight stay"
+              nullable
+              placeholder="No hotel selected"
+              options={(hotels ?? []).map((h) => ({
+                value: h.id,
+                label: h.city ? `${h.name} (${h.city})` : h.name,
+              }))}
+              description="Add the hotel from Suppliers if it isn't listed."
+            />
+            <TextField
+              control={form.control}
+              name="stayNote"
+              label="Stay notes"
+              placeholder="Deluxe room with balcony"
+            />
+          </div>
 
           <FieldSet>
             <FieldLabel>Meals included</FieldLabel>

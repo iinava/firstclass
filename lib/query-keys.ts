@@ -49,7 +49,8 @@ export const qk = {
     all: ["suppliers"] as const,
     list: (params: ListParams = {}) => ["suppliers", "list", params] as const,
     detail: (id: string) => ["suppliers", "detail", id] as const,
-    options: () => ["suppliers", "options"] as const,
+    options: (type?: string | string[]) => ["suppliers", "options", type ?? null] as const,
+    rates: (supplierId: string) => ["suppliers", "rates", supplierId] as const,
   },
   vehicles: {
     all: ["vehicles"] as const,

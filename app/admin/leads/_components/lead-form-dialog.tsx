@@ -13,9 +13,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { CustomerPicker } from "@/components/shared/customer-picker"
+import { CustomerCombobox } from "@/components/shared/customer-combobox"
 import { OptionSelect, optionsFrom } from "@/components/shared/option-select"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
@@ -245,7 +246,7 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
                 </div>
 
                 {customerMode === "existing" ? (
-                  <CustomerPicker control={form.control} name="customerId" />
+                  <CustomerCombobox control={form.control} name="customerId" />
                 ) : (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Controller
@@ -363,11 +364,11 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
                     <FieldLabel htmlFor="lead-travel-date">
                       Approx. travel date
                     </FieldLabel>
-                    <Input
-                      {...field}
-                      value={(field.value as string) ?? ""}
+                    <DatePicker
                       id="lead-travel-date"
-                      type="date"
+                      value={field.value as string | null}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
                     />
                   </Field>
                 )}

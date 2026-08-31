@@ -357,7 +357,18 @@ export async function getBookingLedger(bookingId: string, client: Tx | typeof db
     .where(and(eq(expenses.bookingId, bookingId), isNull(expenses.deletedAt)))
 
   const booking = await getBookingRaw(bookingId, client)
-  const revenue = Number(booking?.grandTotal ?? 0)
+
+  // Add-on cost lines carry their own `sellAmount` (an excursion billed on top
+  // of the package price) — without folding it in, every priced add-on drags
+  // profit down without ever showing up as revenue.
+  const addOnRevenue = costByCategory.reduce((sum, row) => sum + Number(row.sell), 0)
+  // A cancelled trip's revenue is whatever was actually retained, not the
+  // full quoted price — otherwise "Balance due" keeps demanding money for a
+  // trip that never happened.
+  const revenue =
+    booking?.status === "cancelled"
+      ? Number(booking.cancellationCharge ?? 0)
+      : Number(booking?.grandTotal ?? 0) + addOnRevenue
   const supplierCost = Number(totals?.costTotal ?? 0)
   const directExpense = Number(expenseRow?.total ?? 0)
   const cost = supplierCost + directExpense
@@ -413,10 +424,29 @@ export async function deletePax(id: string) {
 
 // ---------------------------------------------------------------------- days
 
-export async function listTripDays(bookingId: string): Promise<BookingDay[]> {
+export interface BookingDayWithHotel extends BookingDay {
+  hotelName: string | null
+}
+
+export async function listTripDays(bookingId: string): Promise<BookingDayWithHotel[]> {
   return db
-    .select()
+    .select({
+      id: bookingDays.id,
+      bookingId: bookingDays.bookingId,
+      dayNumber: bookingDays.dayNumber,
+      title: bookingDays.title,
+      description: bookingDays.description,
+      hotelSupplierId: bookingDays.hotelSupplierId,
+      stayNote: bookingDays.stayNote,
+      breakfast: bookingDays.breakfast,
+      lunch: bookingDays.lunch,
+      dinner: bookingDays.dinner,
+      createdAt: bookingDays.createdAt,
+      updatedAt: bookingDays.updatedAt,
+      hotelName: suppliers.name,
+    })
     .from(bookingDays)
+    .leftJoin(suppliers, eq(suppliers.id, bookingDays.hotelSupplierId))
     .where(eq(bookingDays.bookingId, bookingId))
     .orderBy(asc(bookingDays.dayNumber))
 }
@@ -430,6 +460,7 @@ export async function upsertTripDay(values: typeof bookingDays.$inferInsert) {
       set: {
         title: values.title,
         description: values.description,
+        hotelSupplierId: values.hotelSupplierId,
         stayNote: values.stayNote,
         breakfast: values.breakfast,
         lunch: values.lunch,
@@ -478,6 +509,7 @@ export async function seedTripDaysFromItinerary(
       dayNumber: day.dayNumber,
       title: day.title,
       description: day.description,
+      hotelSupplierId: day.hotelSupplierId,
       stayNote: day.stayNote,
       breakfast: day.breakfast,
       lunch: day.lunch,

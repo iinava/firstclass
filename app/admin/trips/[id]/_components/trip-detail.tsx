@@ -10,6 +10,7 @@ import {
   BedIcon,
   BusIcon,
   CalendarIcon,
+  GaugeIcon,
   IndianRupeeIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -63,6 +64,7 @@ import {
   updateBookingStatus,
 } from "../../actions"
 import { AssignVehicleDialog } from "./assign-vehicle-dialog"
+import { OdometerDialog } from "./odometer-dialog"
 import { TripFormDialog } from "../../_components/trip-form-dialog"
 import { ReceiptDialog } from "./receipt-dialog"
 import { TripCostDialog } from "./trip-cost-dialog"
@@ -113,6 +115,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
   const [cancelOpen, setCancelOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [deletingAssignmentId, setDeletingAssignmentId] = React.useState<string | null>(null)
+  const [odometerAssignmentId, setOdometerAssignmentId] = React.useState<string | null>(null)
   const [deletingPaxId, setDeletingPaxId] = React.useState<string | null>(null)
   const [dayOpen, setDayOpen] = React.useState(false)
   const [editingDay, setEditingDay] = React.useState<BookingDay | null>(null)
@@ -167,7 +170,9 @@ export function TripDetail({ tripId }: { tripId: string }) {
         header: "Item",
         cell: (row) => (
           <div className="min-w-0">
-            <p className="truncate text-[15px] font-medium">{row.description}</p>
+            <p className="truncate text-[15px] font-medium">
+              {row.description || COST_CATEGORY_LABELS[row.category]}
+            </p>
             {/* Quantity goes on the detail line — appended to the description it
                 collided with text that already said "2 nights". */}
             <p className="truncate text-[13px] text-muted-foreground">
@@ -504,17 +509,34 @@ export function TripDetail({ tripId }: { tripId: string }) {
                       {assignment.driverName
                         ? ` · ${assignment.driverName} (${formatPhone(assignment.driverPhone)})`
                         : " · no driver"}
+                      {assignment.startOdometer != null
+                        ? ` · ${assignment.startOdometer.toLocaleString()}${
+                            assignment.endOdometer != null
+                              ? ` – ${assignment.endOdometer.toLocaleString()} km`
+                              : " km (no end reading)"
+                          }`
+                        : ""}
                     </p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Unassign vehicle"
-                    disabled={removeVehicle.isPending}
-                    onClick={() => setDeletingAssignmentId(assignment.id)}
-                  >
-                    <XCircleIcon className="size-4" />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Log odometer"
+                      onClick={() => setOdometerAssignmentId(assignment.id)}
+                    >
+                      <GaugeIcon className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Unassign vehicle"
+                      disabled={removeVehicle.isPending}
+                      onClick={() => setDeletingAssignmentId(assignment.id)}
+                    >
+                      <XCircleIcon className="size-4" />
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -576,9 +598,9 @@ export function TripDetail({ tripId }: { tripId: string }) {
                     <p className="font-medium">
                       Day {d.dayNumber}: {d.title}
                     </p>
-                    {d.stayNote && (
+                    {(d.hotelName || d.stayNote) && (
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        Stay: {d.stayNote}
+                        Stay: {[d.hotelName, d.stayNote].filter(Boolean).join(" — ")}
                       </p>
                     )}
                     {d.description && (
@@ -724,6 +746,22 @@ export function TripDetail({ tripId }: { tripId: string }) {
         onOpenChange={setEditOpen}
         booking={trip}
       />
+
+      {(() => {
+        const editingAssignment = assignments?.find((a) => a.id === odometerAssignmentId)
+        return (
+          <OdometerDialog
+            open={Boolean(editingAssignment)}
+            onOpenChange={(open) => !open && setOdometerAssignmentId(null)}
+            assignmentId={editingAssignment?.id ?? ""}
+            regNumber={editingAssignment?.regNumber ?? ""}
+            driverId={editingAssignment?.driverId ?? null}
+            startOdometer={editingAssignment?.startOdometer ?? null}
+            endOdometer={editingAssignment?.endOdometer ?? null}
+            notes={editingAssignment?.notes ?? null}
+          />
+        )
+      })()}
 
       <PaxDialog open={paxOpen} onOpenChange={setPaxOpen} bookingId={tripId} />
 
