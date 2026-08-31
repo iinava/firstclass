@@ -4,7 +4,6 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  BanknoteIcon,
   BookOpenIcon,
   BriefcaseIcon,
   BusIcon,
@@ -147,20 +146,8 @@ const NAV: NavGroup[] = [
         icon: UserRoundCheckIcon,
         permissions: ["hrms:view"],
       },
-      {
-        title: "Attendance",
-        // The register and the approval queue — matches the page's own gate,
-        // which is hrms:view alone.
-        url: "/admin/attendance",
-        icon: CalendarCheckIcon,
-        permissions: ["hrms:view"],
-      },
-      {
-        title: "Payroll",
-        url: "/admin/payroll",
-        icon: BanknoteIcon,
-        permissions: ["payroll:view"],
-      },
+      // Attendance and Payroll are hidden from navigation for now — the
+      // routes and their permissions are untouched, just not linked here.
     ],
   },
   {

@@ -55,7 +55,13 @@ type Video = { title: string; description: string; url: string }
  * Newest first — a viewer who watches the tour then the updates is caught up.
  * Empty until a walkthrough is recorded; the card is hidden while it is.
  */
-const VIDEOS: Video[] = []
+const VIDEOS: Video[] = [
+  {
+    title: "Demo video",
+    description: "A recorded walkthrough of the system, covering enquiries through trips.",
+    url: "https://drive.google.com/drive/folders/1JWZcs0I8cSRVsp5wUVXa8Mg8CObLdTG2?usp=sharing",
+  },
+]
 
 type SectionMeta = {
   id: string
@@ -553,20 +559,21 @@ export default function InfoPage() {
         <div className="flex flex-col gap-3">
           <SubHeading>Logging one while they are on the phone</SubHeading>
           <p className="text-muted-foreground">
-            The form carries the customer&apos;s details inline, so nobody has to
-            create a customer as a separate step first. Type the name and phone
-            number: if that number is already in the book the enquiry attaches to
-            the existing customer, and if it is not, the customer is created.
+            Start by choosing <strong>New customer</strong> or{" "}
+            <strong>Existing customer</strong>. New customer takes a name and
+            phone number and creates the record for you. Existing customer opens
+            a search box — type a name or number and pick from the matches
+            instead of retyping someone already in the book.
           </p>
           <Fields
             rows={[
               {
                 name: "Customer name, Phone",
-                note: "Both required. The phone number is what matches an existing customer, so get it right before anything else.",
+                note: "Shown for New customer. Both required — the phone number is what a future search matches on.",
               },
               {
-                name: "Destination",
-                note: "Free text — where they want to go.",
+                name: "Destinations",
+                note: "One or more rows, each a place and how many days there — press the + button to add another. Munnar (2 days), then Alleppey (1 day), for example, rather than one free-text line.",
               },
               {
                 name: "Travel date, Duration",
@@ -623,7 +630,8 @@ export default function InfoPage() {
               </>,
               <>
                 <strong>Won</strong> is set for you when the enquiry is converted
-                into a trip. You do not need to set it by hand.
+                into a trip — and converting takes you straight to that new
+                trip&apos;s page, not back to the enquiry list.
               </>,
               <>
                 Every stage change, assignment and follow-up outcome is written to
@@ -637,6 +645,12 @@ export default function InfoPage() {
           Sales consultants see only the enquiries assigned to them. Managers and
           above see the whole pipeline and can reassign. If a consultant says an
           enquiry has vanished, it was almost certainly reassigned — not deleted.
+        </Note>
+
+        <Note>
+          <strong>Won enquiries drop off the list by default</strong> once they
+          have become a trip — there is nothing left to do with them here. Pick{" "}
+          <strong>Won</strong> in the stage filter to see them again.
         </Note>
       </Section>
 
@@ -776,8 +790,14 @@ export default function InfoPage() {
             items={[
               <>
                 Add a <strong>day</strong> at a time: day number, title,
-                description, a stay note, and tick which meals are included —
-                breakfast, lunch, dinner.
+                description, an <strong>overnight stay</strong> picked from your
+                hotel/homestay/resort suppliers — not typed — with an optional
+                note for the room type, and which meals are included — breakfast,
+                lunch, dinner. Not in the supplier list yet? Add it under{" "}
+                <a href="#suppliers" className="underline hover:text-foreground">
+                  Suppliers
+                </a>{" "}
+                first.
               </>,
               <>
                 Upload <strong>photos</strong> against the itinerary or against a
@@ -845,7 +865,14 @@ export default function InfoPage() {
           </p>
           <Fields
             rows={[
-              { name: "Customer", note: "Required. A trip always belongs to someone." },
+              {
+                name: "Customer",
+                note: "Required — searched and picked, the same way as everywhere else in the app. A trip always belongs to someone.",
+              },
+              {
+                name: "Package",
+                note: "Optional. Pick one and its day-by-day plan — hotels and all — is copied onto this trip as a starting point, editable from there without touching the original package. Leave it unset for a custom trip with no template.",
+              },
               { name: "Trip name", note: "Required — what everyone will call it, e.g. \"Munnar & Thekkady 4N\"." },
               { name: "Destination", note: "Free text." },
               {
@@ -915,6 +942,29 @@ export default function InfoPage() {
         </div>
 
         <div className="flex flex-col gap-3">
+          <SubHeading>Day-by-day itinerary</SubHeading>
+          <p className="text-muted-foreground">
+            The trip page has its own <strong>Itinerary</strong> tab — a day-by-day
+            plan for this trip specifically, separate from the package it may have
+            started from. If a package was picked when the trip was created, its
+            days are copied in as a starting point; otherwise it starts empty.
+          </p>
+          <Bullets
+            items={[
+              <>
+                Add or edit a day the same way as on a package: title,
+                description, a hotel picked from suppliers, a note, and meals.
+              </>,
+              <>
+                Editing a trip&apos;s days never changes the original package —
+                the day the actual hotel differs from the template is exactly why
+                this exists.
+              </>,
+            ]}
+          />
+        </div>
+
+        <div className="flex flex-col gap-3">
           <SubHeading>The two buttons at the top</SubHeading>
           <Fields
             rows={[
@@ -960,21 +1010,41 @@ export default function InfoPage() {
                 note: "Optional but worth setting — it is what makes spend-by-supplier possible, and what a supplier's outstanding is worked out from.",
               },
               { name: "Vehicle", note: "For transport lines, ties the cost to a vehicle for the running-cost report." },
-              { name: "Description", note: "Required — what this line actually is." },
+              { name: "Description", note: "Optional — a line with no description just shows its category instead." },
               { name: "Service date", note: "The night or the day this covers." },
               {
                 name: "Quantity, Unit cost",
-                note: "Multiplied together to give the line's cost, e.g. 3 rooms at ₹2,400.",
+                note: "Multiplied together to give the line's cost — the quantity label changes with the category (Nights for a hotel, Days for transport, Pax for activities, Tickets for flights…). Fuel, tolls and misc are inherently one line, so there is no quantity field at all — just an amount.",
               },
               {
                 name: "Sell amount",
-                note: "What this element is being sold to the customer for, if you are tracking it line by line. It does not change what the customer owes — the trip total does that.",
+                note: "What this element is being sold to the customer for — an excursion charged on top of the package price, say. It counts into the trip's revenue and profit on the Breakdown tab; it does not add to the trip's own \"grand total\" figure, so collect it as a separate receipt if it isn't already folded into the trip price.",
               },
               {
                 name: "Status",
                 note: "Planned, Booked or Cancelled. Cancelled lines are excluded from cost and profit entirely.",
               },
               { name: "Confirmation no.", note: "The hotel or transporter's reference." },
+            ]}
+          />
+          <Bullets
+            items={[
+              <>
+                Pick a <strong>supplier</strong> with a rate card and its rates
+                appear as quick-pick buttons — one click fills in the description
+                and unit cost from what you already charged them last time.
+              </>,
+              <>
+                For a <strong>Hotel</strong> line, the hotels already chosen on
+                this trip&apos;s Itinerary tab show up the same way, so the cost
+                line and the day plan never quietly name two different hotels.
+              </>,
+              <>
+                Pick a <strong>Transport</strong> line&apos;s vehicle and the days
+                and rate fill in from that vehicle&apos;s assignment and its
+                standing per-day rate — check the numbers rather than typing them
+                from scratch.
+              </>,
             ]}
           />
         </div>
@@ -984,13 +1054,23 @@ export default function InfoPage() {
           <Bullets
             items={[
               <>
-                Assign a <strong>vehicle and driver</strong> for a date range, with
-                an opening odometer reading and a closing one when it returns.
+                Assign a <strong>vehicle and driver</strong> for a date range,
+                with an opening odometer reading. A <strong>transport cost</strong>
+                {" "}line for it is offered at the same time — pre-filled from the
+                vehicle&apos;s own per-day rate and the dates you just entered —
+                so assigning the vehicle and costing it is one step, not two.
               </>,
               <>
                 The same vehicle <strong>cannot be assigned to overlapping
                 dates</strong>. The refusal is a scheduling answer, not an error —
                 that vehicle is already out.
+              </>,
+              <>
+                Log the <strong>closing odometer reading</strong> from this tab
+                once the vehicle is back — the gauge button next to each
+                assignment. That reading is what lets a <strong>Fuel</strong> cost
+                line estimate its own cost, from distance driven ÷ the
+                vehicle&apos;s mileage × its fuel price.
               </>,
             ]}
           />
@@ -1067,7 +1147,11 @@ export default function InfoPage() {
               { name: "Default driver", note: "Who usually drives it — pre-filled when you assign." },
               {
                 name: "Rate per km / per day",
-                note: "What it costs to run, used when you cost transport.",
+                note: "What it costs to run — the per-day rate pre-fills a transport cost line the moment you assign this vehicle to a trip.",
+              },
+              {
+                name: "Mileage (km/l), Fuel price per litre",
+                note: "Set both and a Fuel cost line for this vehicle can estimate its own cost from distance driven, once the trip records a closing odometer reading.",
               },
               {
                 name: "Insurance, Fitness, PUC expiry",
@@ -1215,6 +1299,12 @@ export default function InfoPage() {
           Your own staff, as opposed to your customers. Two screens —{" "}
           <strong>Employees</strong> and <strong>Attendance</strong>.
         </p>
+
+        <Note>
+          <strong>Attendance is currently hidden from the sidebar</strong> along
+          with Payroll, below. Nothing about either screen has changed — they
+          just are not linked from the menu for now.
+        </Note>
 
         <div className="flex flex-col gap-3">
           <SubHeading>Employee records</SubHeading>
@@ -1473,10 +1563,10 @@ export default function InfoPage() {
             { name: "Package price", note: "On a trip priced fixed: the subtotal, entered directly." },
             { name: "Discount", note: "On a trip: taken off the subtotal before GST. Never more than the subtotal." },
             { name: "GST %", note: "On a trip: applied to the amount after discount. Stored with the trip, so a later rate change does not rewrite old trips." },
-            { name: "Grand total", note: "On a trip: what the customer owes. This is the revenue figure everywhere else." },
+            { name: "Grand total", note: "On a trip: what the customer owes on the trip itself." },
             { name: "Unit cost × Quantity", note: "On a cost line: what that element costs you." },
-            { name: "Sell amount", note: "On a cost line: what that element is being sold for. Reporting only — it does not change what the customer owes." },
-            { name: "Cancellation charge", note: "On a cancelled trip: the non-refundable amount you kept." },
+            { name: "Sell amount", note: "On a cost line: what that element is sold for on top of the package. Added into the trip's revenue and profit on the Breakdown tab — it is not part of the trip's own grand total." },
+            { name: "Cancellation charge", note: "On a cancelled trip: the non-refundable amount you kept. This becomes the trip's revenue for balance and profit purposes once it's cancelled — not the original grand total." },
             { name: "Day rate", note: "On an employee: what they're paid for one day worked, entered directly. Payroll multiplies it by days in the month to get the gross salary." },
             { name: "Paid leaves per month", note: "On an employee: how many leave days they can take a month before it costs them. Defaults to 2." },
             { name: "Deduction", note: "On a payroll line: unpaid days × day rate. Absences, leave beyond that employee's monthly allowance, and half a day per half-day." },
@@ -1495,19 +1585,23 @@ export default function InfoPage() {
             <p>Taxable = Subtotal − Discount</p>
             <p>GST = Taxable × GST rate</p>
             <p>Grand total = Taxable + GST</p>
+            <p>Revenue = Grand total + sell amounts from cost lines</p>
+            <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= Cancellation charge instead, once the trip is cancelled</p>
             <p>Trip cost = cost lines not cancelled + expenses tagged to the trip</p>
-            <p>Profit = Grand total − Trip cost</p>
-            <p>Margin = Profit ÷ Grand total × 100</p>
+            <p>Profit = Revenue − Trip cost</p>
+            <p>Margin = Profit ÷ Revenue × 100</p>
             <p>Received = receipts not voided</p>
-            <p>Balance = Grand total − Received</p>
+            <p>Balance = Revenue − Received</p>
             <p>Owed to supplier = its cost lines − payments made to it</p>
           </div>
           <Note>
-            Two things account for most &quot;this number looks wrong&quot;
+            Three things account for most &quot;this number looks wrong&quot;
             questions. <strong>Cancelled cost lines are excluded entirely</strong>{" "}
-            from cost and profit — not counted as zero. And{" "}
-            <strong>voided receipts stop counting</strong> towards received and
-            balance the moment they are voided.
+            from cost and profit — not counted as zero.{" "}
+            <strong>Voided receipts stop counting</strong> towards received and
+            balance the moment they are voided. And a cost line&apos;s{" "}
+            <strong>sell amount adds to revenue</strong>, so profit on a trip with
+            priced add-ons is higher than the grand total alone would suggest.
           </Note>
         </div>
       </Section>
