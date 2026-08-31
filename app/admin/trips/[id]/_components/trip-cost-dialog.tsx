@@ -34,7 +34,7 @@ import {
 } from "@/validations/booking.validation"
 import type { TripCostRow } from "@/lib/services/booking.service"
 import { fetchSupplierOptions } from "@/app/admin/suppliers/actions"
-import { fetchVehicleOptions } from "@/app/admin/fleet/actions"
+import { fetchAssignments, fetchVehicleOptions } from "@/app/admin/fleet/actions"
 import { createTripCost, updateTripCost } from "../../actions"
 
 const CATEGORY_OPTIONS = optionsFrom(COST_CATEGORIES, COST_CATEGORY_LABELS)
@@ -95,6 +95,12 @@ function TripCostForm({
     staleTime: 5 * 60 * 1000,
   })
 
+  const { data: assignments } = useQuery({
+    queryKey: qk.vehicles.availability({ bookingId }),
+    queryFn: async () => unwrapAction(await fetchAssignments({ bookingId })),
+    staleTime: 60 * 1000,
+  })
+
   const defaultValues = React.useMemo<TripCostValues>(
     () => ({
       bookingId,
@@ -128,6 +134,24 @@ function TripCostForm({
   const values = form.watch()
   const lineTotal = toPaise(values.unitCost as string) * Number(values.quantity || 0)
   const showVehicle = VEHICLE_CATEGORIES.has(values.category as string)
+
+  // Fuel cost = distance driven ÷ mileage (km/l) × fuel price per litre. Only
+  // computable once the vehicle has a logged odometer reading for this trip.
+  const mileageSuggestion = React.useMemo(() => {
+    if (values.category !== "fuel" || !values.vehicleId) return null
+    const vehicle = vehicles?.find((v) => v.id === values.vehicleId)
+    if (!vehicle?.mileageKmpl || !vehicle.fuelPricePerLitre) return null
+
+    const assignment = assignments?.find((a) => a.vehicleId === values.vehicleId)
+    if (!assignment?.startOdometer || !assignment.endOdometer) return null
+
+    const distanceKm = assignment.endOdometer - assignment.startOdometer
+    if (distanceKm <= 0) return null
+
+    const litres = distanceKm / vehicle.mileageKmpl
+    const cost = Math.round(litres * vehicle.fuelPricePerLitre)
+    return { distanceKm, litres, cost }
+  }, [values.category, values.vehicleId, vehicles, assignments])
 
   return (
     <>
@@ -192,6 +216,31 @@ function TripCostForm({
             placeholder="2 deluxe rooms, Tea Valley Resort"
             autoFocus
           />
+
+          {mileageSuggestion && (
+            <div className="flex items-center justify-between rounded-lg border border-dashed px-4 py-3 text-sm">
+              <span className="text-muted-foreground">
+                {mileageSuggestion.distanceKm} km driven ÷ mileage ≈{" "}
+                {mileageSuggestion.litres.toFixed(1)} L — est.{" "}
+                {formatMoney(mileageSuggestion.cost)}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  form.setValue("quantity", 1, { shouldDirty: true })
+                  form.setValue(
+                    "unitCost",
+                    String(toRupees(mileageSuggestion.cost)),
+                    { shouldDirty: true }
+                  )
+                }}
+              >
+                Use this
+              </Button>
+            </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-3">
             <NumberField

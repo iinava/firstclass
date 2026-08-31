@@ -3,6 +3,7 @@ import {
   date,
   index,
   integer,
+  numeric,
   pgEnum,
   pgTable,
   text,
@@ -61,6 +62,10 @@ export const vehicles = pgTable(
     /** Standing rates used to pre-fill costs — actuals are logged per trip. */
     ratePerKm: money("rate_per_km"),
     ratePerDay: money("rate_per_day"),
+    /** Fuel efficiency in km per litre, used to estimate fuel cost from distance. */
+    mileageKmpl: numeric("mileage_kmpl", { mode: "number" }),
+    /** Default fuel price per litre, in paise — can be overridden per cost line. */
+    fuelPricePerLitre: money("fuel_price_per_litre"),
     insuranceExpiry: date("insurance_expiry"),
     fitnessExpiry: date("fitness_expiry"),
     pucExpiry: date("puc_expiry"),

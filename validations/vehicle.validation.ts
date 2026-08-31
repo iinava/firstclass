@@ -50,6 +50,8 @@ export const VehicleFormSchema = z.object({
   defaultDriverId: uuidSchema.nullable().optional(),
   ratePerKm: optionalMoneySchema,
   ratePerDay: optionalMoneySchema,
+  mileageKmpl: z.coerce.number().min(0).max(200).optional().nullable(),
+  fuelPricePerLitre: optionalMoneySchema,
   insuranceExpiry: optionalDateString,
   fitnessExpiry: optionalDateString,
   pucExpiry: optionalDateString,

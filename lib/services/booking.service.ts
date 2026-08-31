@@ -1,9 +1,16 @@
 import "server-only"
 import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm"
 import { db, type Tx } from "@/db/drizzle"
-import { bookingPax, bookings, type Booking } from "@/db/schemas/booking.schema"
+import {
+  bookingDays,
+  bookingPax,
+  bookings,
+  type Booking,
+  type BookingDay,
+} from "@/db/schemas/booking.schema"
 import { customers } from "@/db/schemas/customer.schema"
 import { expenses, receipts } from "@/db/schemas/accounts.schema"
+import { itineraryDays } from "@/db/schemas/itinerary.schema"
 import { suppliers } from "@/db/schemas/supplier.schema"
 import { tripCostItems, type TripCostItem } from "@/db/schemas/trip-cost.schema"
 import { users } from "@/db/schemas/user.schema"
@@ -26,6 +33,7 @@ export interface BookingListRow {
   id: string
   code: string
   title: string
+  itineraryId: string | null
   destination: string | null
   startDate: string
   endDate: string
@@ -49,6 +57,7 @@ const listSelection = {
   id: bookings.id,
   code: bookings.code,
   title: bookings.title,
+  itineraryId: bookings.itineraryId,
   destination: bookings.destination,
   startDate: bookings.startDate,
   endDate: bookings.endDate,
@@ -400,4 +409,79 @@ export async function deletePax(id: string) {
     .where(eq(bookingPax.id, id))
     .returning()
   return row ?? null
+}
+
+// ---------------------------------------------------------------------- days
+
+export async function listTripDays(bookingId: string): Promise<BookingDay[]> {
+  return db
+    .select()
+    .from(bookingDays)
+    .where(eq(bookingDays.bookingId, bookingId))
+    .orderBy(asc(bookingDays.dayNumber))
+}
+
+export async function upsertTripDay(values: typeof bookingDays.$inferInsert) {
+  const [row] = await db
+    .insert(bookingDays)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [bookingDays.bookingId, bookingDays.dayNumber],
+      set: {
+        title: values.title,
+        description: values.description,
+        stayNote: values.stayNote,
+        breakfast: values.breakfast,
+        lunch: values.lunch,
+        dinner: values.dinner,
+        updatedAt: new Date(),
+      },
+    })
+    .returning()
+  return row
+}
+
+export async function updateTripDay(
+  id: string,
+  values: Partial<typeof bookingDays.$inferInsert>
+) {
+  const [row] = await db
+    .update(bookingDays)
+    .set(values)
+    .where(eq(bookingDays.id, id))
+    .returning()
+  return row ?? null
+}
+
+export async function deleteTripDay(id: string): Promise<BookingDay | null> {
+  const [row] = await db.delete(bookingDays).where(eq(bookingDays.id, id)).returning()
+  return row ?? null
+}
+
+/** Seeds a trip's day-by-day plan from its linked package — a starting point
+ * the agent then edits since the actual booked hotel often differs. */
+export async function seedTripDaysFromItinerary(
+  bookingId: string,
+  itineraryId: string
+): Promise<void> {
+  const days = await db
+    .select()
+    .from(itineraryDays)
+    .where(eq(itineraryDays.itineraryId, itineraryId))
+    .orderBy(asc(itineraryDays.dayNumber))
+
+  if (days.length === 0) return
+
+  await db.insert(bookingDays).values(
+    days.map((day) => ({
+      bookingId,
+      dayNumber: day.dayNumber,
+      title: day.title,
+      description: day.description,
+      stayNote: day.stayNote,
+      breakfast: day.breakfast,
+      lunch: day.lunch,
+      dinner: day.dinner,
+    }))
+  )
 }

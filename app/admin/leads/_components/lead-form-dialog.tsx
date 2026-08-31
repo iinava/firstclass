@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { Controller } from "react-hook-form"
+import { Controller, useFieldArray } from "react-hook-form"
 import { useQuery } from "@tanstack/react-query"
+import { PlusIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { CustomerPicker } from "@/components/shared/customer-picker"
 import { OptionSelect, optionsFrom } from "@/components/shared/option-select"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
@@ -30,7 +32,12 @@ import {
   type CreateLeadValues,
 } from "@/validations/lead.validation"
 import type { LeadListRow } from "@/lib/services/lead.service"
-import { createLead, fetchAssignableUsers, updateLead } from "../actions"
+import {
+  createLead,
+  fetchAssignableUsers,
+  fetchLeadDestinations,
+  updateLead,
+} from "../actions"
 
 interface LeadFormDialogProps {
   open: boolean
@@ -52,9 +59,10 @@ const STATUS_OPTIONS = optionsFrom(
 )
 
 const EMPTY: CreateLeadValues = {
+  customerId: null,
   customerName: "",
   customerPhone: "",
-  destination: "",
+  destinations: [{ destination: "", days: undefined }],
   travelDate: "",
   durationDays: undefined,
   adults: 1,
@@ -86,6 +94,12 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
     [assignees]
   )
 
+  const { data: existingDestinations } = useQuery({
+    queryKey: qk.leads.destinations(lead?.id ?? ""),
+    queryFn: async () => unwrapAction(await fetchLeadDestinations({ leadId: lead!.id })),
+    enabled: open && Boolean(lead),
+  })
+
   const defaultValues = React.useMemo<CreateLeadValues>(
     () =>
       lead
@@ -93,7 +107,13 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
             ...EMPTY,
             customerName: lead.customerName,
             customerPhone: lead.customerPhone,
-            destination: lead.destination ?? "",
+            destinations:
+              existingDestinations && existingDestinations.length > 0
+                ? existingDestinations.map((d) => ({
+                    destination: d.destination,
+                    days: d.days ?? undefined,
+                  }))
+                : [{ destination: lead.destination ?? "", days: undefined }],
             travelDate: lead.travelDate ?? "",
             adults: lead.adults,
             children: lead.children,
@@ -104,7 +124,7 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
             requirements: lead.requirements ?? "",
           }
         : EMPTY,
-    [lead]
+    [lead, existingDestinations]
   )
 
   const { form, onSubmit, isPending } = useCrudForm<CreateLeadValues>({
@@ -122,10 +142,21 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
     onSuccess: () => onOpenChange(false),
   })
 
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "destinations",
+  })
+
+  const [customerMode, setCustomerMode] = React.useState<"new" | "existing">("new")
+
+  React.useEffect(() => {
+    if (open) setCustomerMode("new")
+  }, [open])
+
   React.useEffect(() => {
     if (open) form.reset(defaultValues as never)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, lead?.id])
+  }, [open, lead?.id, existingDestinations])
 
   return (
     <Dialog open={open} onOpenChange={isPending ? undefined : onOpenChange}>
@@ -141,64 +172,189 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
 
         <form id="lead-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
           <FieldGroup>
+            {isEdit ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Controller
+                  name="customerName"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid} data-disabled>
+                      <FieldLabel htmlFor="lead-customer-name">Customer name</FieldLabel>
+                      <Input
+                        {...field}
+                        value={(field.value as string) ?? ""}
+                        id="lead-customer-name"
+                        disabled
+                        placeholder="Ramesh Kumar"
+                        aria-invalid={fieldState.invalid}
+                      />
+                      {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                    </Field>
+                  )}
+                />
+
+                <Controller
+                  name="customerPhone"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid} data-disabled>
+                      <FieldLabel htmlFor="lead-customer-phone">Phone</FieldLabel>
+                      <Input
+                        {...field}
+                        value={(field.value as string) ?? ""}
+                        id="lead-customer-phone"
+                        type="tel"
+                        inputMode="numeric"
+                        disabled
+                        placeholder="98765 43210"
+                        aria-invalid={fieldState.invalid}
+                      />
+                      {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                    </Field>
+                  )}
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-1 rounded-lg border p-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={customerMode === "new" ? "default" : "ghost"}
+                    className="flex-1"
+                    onClick={() => {
+                      setCustomerMode("new")
+                      form.setValue("customerId", null)
+                    }}
+                  >
+                    New customer
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={customerMode === "existing" ? "default" : "ghost"}
+                    className="flex-1"
+                    onClick={() => {
+                      setCustomerMode("existing")
+                      form.setValue("customerName", "")
+                      form.setValue("customerPhone", "")
+                    }}
+                  >
+                    Existing customer
+                  </Button>
+                </div>
+
+                {customerMode === "existing" ? (
+                  <CustomerPicker control={form.control} name="customerId" />
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Controller
+                      name="customerName"
+                      control={form.control}
+                      render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                          <FieldLabel htmlFor="lead-customer-name">
+                            Customer name
+                          </FieldLabel>
+                          <Input
+                            {...field}
+                            value={(field.value as string) ?? ""}
+                            id="lead-customer-name"
+                            autoFocus
+                            placeholder="Ramesh Kumar"
+                            aria-invalid={fieldState.invalid}
+                          />
+                          {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                        </Field>
+                      )}
+                    />
+
+                    <Controller
+                      name="customerPhone"
+                      control={form.control}
+                      render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                          <FieldLabel htmlFor="lead-customer-phone">Phone</FieldLabel>
+                          <Input
+                            {...field}
+                            value={(field.value as string) ?? ""}
+                            id="lead-customer-phone"
+                            type="tel"
+                            inputMode="numeric"
+                            placeholder="98765 43210"
+                            aria-invalid={fieldState.invalid}
+                          />
+                          {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                        </Field>
+                      )}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Field>
+              <div className="flex items-center justify-between">
+                <FieldLabel>Destinations</FieldLabel>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Add destination"
+                  onClick={() => append({ destination: "", days: undefined })}
+                >
+                  <PlusIcon className="size-4" />
+                </Button>
+              </div>
+              <div className="flex flex-col gap-2">
+                {fields.map((field, index) => (
+                  <div key={field.id} className="grid grid-cols-[1fr_6rem_auto] gap-2">
+                    <Controller
+                      name={`destinations.${index}.destination`}
+                      control={form.control}
+                      render={({ field: destField, fieldState }) => (
+                        <Input
+                          {...destField}
+                          value={(destField.value as string) ?? ""}
+                          placeholder="Munnar"
+                          aria-invalid={fieldState.invalid}
+                        />
+                      )}
+                    />
+                    <Controller
+                      name={`destinations.${index}.days`}
+                      control={form.control}
+                      render={({ field: daysField }) => (
+                        <Input
+                          {...daysField}
+                          value={daysField.value == null ? "" : String(daysField.value)}
+                          type="number"
+                          min={0}
+                          placeholder="Days"
+                        />
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Remove destination"
+                      disabled={fields.length <= 1}
+                      onClick={() => remove(index)}
+                    >
+                      <XIcon className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              {form.formState.errors.destinations?.message && (
+                <FieldError
+                  errors={[{ message: form.formState.errors.destinations.message }]}
+                />
+              )}
+            </Field>
+
             <div className="grid gap-4 sm:grid-cols-2">
-              <Controller
-                name="customerName"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid} data-disabled={isEdit}>
-                    <FieldLabel htmlFor="lead-customer-name">Customer name</FieldLabel>
-                    <Input
-                      {...field}
-                      value={(field.value as string) ?? ""}
-                      id="lead-customer-name"
-                      autoFocus={!isEdit}
-                      disabled={isEdit}
-                      placeholder="Ramesh Kumar"
-                      aria-invalid={fieldState.invalid}
-                    />
-                    {fieldState.error && <FieldError errors={[fieldState.error]} />}
-                  </Field>
-                )}
-              />
-
-              <Controller
-                name="customerPhone"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid} data-disabled={isEdit}>
-                    <FieldLabel htmlFor="lead-customer-phone">Phone</FieldLabel>
-                    <Input
-                      {...field}
-                      value={(field.value as string) ?? ""}
-                      id="lead-customer-phone"
-                      type="tel"
-                      inputMode="numeric"
-                      disabled={isEdit}
-                      placeholder="98765 43210"
-                      aria-invalid={fieldState.invalid}
-                    />
-                    {fieldState.error && <FieldError errors={[fieldState.error]} />}
-                  </Field>
-                )}
-              />
-
-              <Controller
-                name="destination"
-                control={form.control}
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel htmlFor="lead-destination">Destination</FieldLabel>
-                    <Input
-                      {...field}
-                      value={(field.value as string) ?? ""}
-                      id="lead-destination"
-                      placeholder="Munnar, Alleppey"
-                    />
-                  </Field>
-                )}
-              />
-
               <Controller
                 name="travelDate"
                 control={form.control}

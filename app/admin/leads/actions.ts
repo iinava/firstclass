@@ -75,6 +75,13 @@ export const fetchLeadActivities = defineAction({
   handler: async ({ leadId }) => leadService.getLeadActivities(leadId),
 })
 
+export const fetchLeadDestinations = defineAction({
+  name: "fetchLeadDestinations",
+  permission: "lead:view",
+  schema: z.object({ leadId: uuidSchema }),
+  handler: async ({ leadId }) => leadService.listDestinations(leadId),
+})
+
 /**
  * Creating a lead also resolves the customer: an existing phone number reuses
  * that record, a new one creates it. Staff taking a call should never have to
@@ -85,6 +92,10 @@ export const createLead = defineAction({
   permission: "lead:create",
   schema: CreateLeadSchema,
   handler: async (input, { session }) => {
+    if (!input.customerId && !(input.customerName && input.customerPhone)) {
+      throw new ActionFailure("Select a customer or enter a name and phone number")
+    }
+
     const { customer, created } = input.customerId
       ? {
           customer:
@@ -96,8 +107,8 @@ export const createLead = defineAction({
         }
       : await customerService.upsertCustomerByPhone(
           {
-            name: input.customerName,
-            phone: input.customerPhone,
+            name: input.customerName!,
+            phone: input.customerPhone!,
             source: input.source,
           },
           session.userId
@@ -108,7 +119,7 @@ export const createLead = defineAction({
     const lead = await leadService.createLead({
       code,
       customerId: customer.id,
-      destination: input.destination,
+      destination: leadService.joinDestinations(input.destinations),
       travelDate: input.travelDate ?? null,
       durationDays: input.durationDays ?? null,
       adults: input.adults,
@@ -121,6 +132,11 @@ export const createLead = defineAction({
       requirements: input.requirements,
       createdBy: session.userId,
     })
+
+    await leadService.replaceDestinations(
+      lead.id,
+      input.destinations.map((d) => ({ destination: d.destination, days: d.days ?? null }))
+    )
 
     await leadService.logActivity(
       lead.id,
@@ -163,14 +179,22 @@ export const updateLead = defineAction({
     if (!before) throw new ActionFailure("Lead not found")
     assertLeadInScope(session, before)
 
+    const { destinations, ...rest } = values
+
     const lead = await leadService.updateLead(id, {
-      ...values,
+      ...rest,
+      destination: leadService.joinDestinations(destinations),
       travelDate: values.travelDate ?? null,
       durationDays: values.durationDays ?? null,
       budget: values.budget ?? null,
       assignedTo: values.assignedTo ?? null,
     })
     if (!lead) throw new ActionFailure("Lead not found")
+
+    await leadService.replaceDestinations(
+      id,
+      destinations.map((d) => ({ destination: d.destination, days: d.days ?? null }))
+    )
 
     await recordAudit({
       entity: "leads",

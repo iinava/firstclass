@@ -18,10 +18,13 @@ import {
   DeleteBookingSchema,
   DeletePaxSchema,
   DeleteTripCostSchema,
+  DeleteTripDaySchema,
   TripCostFormSchema,
+  TripDaySchema,
   UpdateBookingSchema,
   UpdateBookingStatusSchema,
   UpdateTripCostSchema,
+  UpdateTripDaySchema,
 } from "@/validations/booking.validation"
 import type { SessionPayload } from "@/types/auth"
 
@@ -158,6 +161,12 @@ export const createBooking = defineAction({
       internalNotes: input.internalNotes,
       createdBy: session.userId,
     })
+
+    // A package pre-fills the day-by-day plan; the agent edits it from there
+    // since the hotel actually booked often differs from the template.
+    if (input.itineraryId) {
+      await service.seedTripDaysFromItinerary(booking.id, input.itineraryId)
+    }
 
     // Converting an enquiry marks it won, so the pipeline stays honest.
     if (input.leadId) {
@@ -457,6 +466,49 @@ export const removePax = defineAction({
 
     const deleted = await service.deletePax(id)
     if (deleted) revalidatePath(`/admin/trips/${deleted.bookingId}`)
+    return { id }
+  },
+})
+
+// ---------------------------------------------------------------------- days
+
+export const fetchTripDays = defineAction({
+  name: "fetchTripDays",
+  permission: "booking:view",
+  schema: z.object({ bookingId: uuidSchema }),
+  handler: async ({ bookingId }) => service.listTripDays(bookingId),
+})
+
+export const saveTripDay = defineAction({
+  name: "saveTripDay",
+  permission: "booking:update",
+  schema: TripDaySchema,
+  handler: async (input) => {
+    const day = await service.upsertTripDay(input)
+    revalidatePath(`/admin/trips/${input.bookingId}`)
+    return day
+  },
+})
+
+export const updateTripDay = defineAction({
+  name: "updateTripDay",
+  permission: "booking:update",
+  schema: UpdateTripDaySchema,
+  handler: async ({ id, ...values }) => {
+    const day = await service.updateTripDay(id, values)
+    if (!day) throw new ActionFailure("Day not found")
+    revalidatePath(`/admin/trips/${values.bookingId}`)
+    return day
+  },
+})
+
+export const deleteTripDay = defineAction({
+  name: "deleteTripDay",
+  permission: "booking:update",
+  schema: DeleteTripDaySchema,
+  handler: async ({ id }) => {
+    const day = await service.deleteTripDay(id)
+    if (day) revalidatePath(`/admin/trips/${day.bookingId}`)
     return { id }
   },
 })

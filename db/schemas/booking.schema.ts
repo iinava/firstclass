@@ -1,4 +1,5 @@
 import {
+  boolean,
   date,
   index,
   integer,
@@ -109,7 +110,38 @@ export const bookingPax = pgTable(
   (t) => [index("booking_pax_booking_idx").on(t.bookingId)]
 )
 
+/**
+ * One row per day of the trip — e.g. "Day 1: Kochi to Munnar, overnight at
+ * Tea Valley Resort". Seeded from the linked package's days when a booking is
+ * created with `itineraryId` set, then edited independently per trip since
+ * the hotel actually booked often differs from the package template.
+ */
+export const bookingDays = pgTable(
+  "booking_days",
+  {
+    id: pk(),
+    bookingId: uuid("booking_id")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    dayNumber: integer("day_number").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    /** Free-text stay note, e.g. "Overnight at Tea Valley Resort, Munnar". */
+    stayNote: text("stay_note"),
+    breakfast: boolean("breakfast").notNull().default(false),
+    lunch: boolean("lunch").notNull().default(false),
+    dinner: boolean("dinner").notNull().default(false),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("booking_days_unique").on(t.bookingId, t.dayNumber),
+    index("booking_days_booking_idx").on(t.bookingId),
+  ]
+)
+
 export type Booking = typeof bookings.$inferSelect
 export type NewBooking = typeof bookings.$inferInsert
 export type BookingPax = typeof bookingPax.$inferSelect
 export type NewBookingPax = typeof bookingPax.$inferInsert
+export type BookingDay = typeof bookingDays.$inferSelect
+export type NewBookingDay = typeof bookingDays.$inferInsert

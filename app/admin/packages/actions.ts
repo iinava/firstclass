@@ -49,6 +49,12 @@ export const fetchItineraries = defineAction({
   handler: async (params) => service.listItineraries(params),
 })
 
+export const fetchPackageOptions = defineAction({
+  name: "fetchPackageOptions",
+  permission: "itinerary:view",
+  handler: async (_input: void) => service.getPackageOptions(),
+})
+
 export const fetchItineraryDetail = defineAction({
   name: "fetchItineraryDetail",
   permission: "itinerary:view",

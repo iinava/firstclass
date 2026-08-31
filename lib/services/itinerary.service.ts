@@ -108,6 +108,23 @@ export async function listItineraries(
   }
 }
 
+/** Packages for the "convert to trip" picker — published, reusable products. */
+export async function getPackageOptions() {
+  return db
+    .select({
+      id: itineraries.id,
+      code: itineraries.code,
+      title: itineraries.title,
+      destination: itineraries.destination,
+      durationDays: itineraries.durationDays,
+      durationNights: itineraries.durationNights,
+    })
+    .from(itineraries)
+    .where(and(alive, eq(itineraries.kind, "package")))
+    .orderBy(desc(itineraries.createdAt))
+    .limit(300)
+}
+
 export async function getItinerary(id: string): Promise<Itinerary | null> {
   const [row] = await db
     .select()

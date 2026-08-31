@@ -112,6 +112,26 @@ export const leadFollowups = pgTable(
   ]
 )
 
+/**
+ * One row per place the customer wants to visit on this enquiry, e.g.
+ * "Munnar — 2 days" then "Alleppey — 1 day". `leads.destination` stays as a
+ * denormalised comma-joined summary of these rows for search/display.
+ */
+export const leadDestinations = pgTable(
+  "lead_destinations",
+  {
+    id: pk(),
+    leadId: uuid("lead_id")
+      .notNull()
+      .references(() => leads.id, { onDelete: "cascade" }),
+    destination: text("destination").notNull(),
+    days: integer("days"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [index("lead_destinations_lead_idx").on(t.leadId, t.sortOrder)]
+)
+
 /** Append-only activity trail shown on the lead detail timeline. */
 export const leadActivities = pgTable(
   "lead_activities",
@@ -135,3 +155,5 @@ export type NewLead = typeof leads.$inferInsert
 export type LeadFollowup = typeof leadFollowups.$inferSelect
 export type NewLeadFollowup = typeof leadFollowups.$inferInsert
 export type LeadActivity = typeof leadActivities.$inferSelect
+export type LeadDestination = typeof leadDestinations.$inferSelect
+export type NewLeadDestination = typeof leadDestinations.$inferInsert

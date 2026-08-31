@@ -169,7 +169,24 @@ export const TripCostFormSchema = z.object({
 export const UpdateTripCostSchema = TripCostFormSchema.extend({ id: uuidSchema })
 export const DeleteTripCostSchema = z.object({ id: uuidSchema })
 
+// ---------------------------------------------------------------------- days
+
+export const TripDaySchema = z.object({
+  bookingId: uuidSchema,
+  dayNumber: z.coerce.number().int().min(1).max(90),
+  title: requiredText("Day title", 200),
+  description: optionalText(4000),
+  stayNote: optionalText(300),
+  breakfast: z.boolean().default(false),
+  lunch: z.boolean().default(false),
+  dinner: z.boolean().default(false),
+})
+
+export const UpdateTripDaySchema = TripDaySchema.extend({ id: uuidSchema })
+export const DeleteTripDaySchema = z.object({ id: uuidSchema })
+
 export type BookingFormValues = z.input<typeof BookingFormSchema>
 export type BookingListParams = z.output<typeof BookingListParamsSchema>
 export type TripCostValues = z.input<typeof TripCostFormSchema>
 export type BookingPaxValues = z.input<typeof BookingPaxSchema>
+export type TripDayValues = z.input<typeof TripDaySchema>

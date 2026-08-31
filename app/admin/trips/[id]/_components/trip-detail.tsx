@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query"
 import {
   ArrowLeftIcon,
   BanIcon,
+  BedIcon,
   BusIcon,
   CalendarIcon,
   IndianRupeeIcon,
@@ -47,14 +48,17 @@ import {
   COST_CATEGORY_LABELS,
 } from "@/validations/booking.validation"
 import type { TripCostRow } from "@/lib/services/booking.service"
+import type { BookingDay } from "@/db/schemas/booking.schema"
 import { removeAssignment, fetchAssignments } from "@/app/admin/fleet/actions"
 import {
   deleteBooking,
   deleteTripCost,
+  deleteTripDay,
   fetchBooking,
   fetchBookingLedger,
   fetchPax,
   fetchTripCosts,
+  fetchTripDays,
   removePax,
   updateBookingStatus,
 } from "../../actions"
@@ -62,6 +66,7 @@ import { AssignVehicleDialog } from "./assign-vehicle-dialog"
 import { TripFormDialog } from "../../_components/trip-form-dialog"
 import { ReceiptDialog } from "./receipt-dialog"
 import { TripCostDialog } from "./trip-cost-dialog"
+import { TripDayDialog } from "./trip-day-dialog"
 import { PaxDialog } from "./pax-dialog"
 import { CancelBookingDialog } from "./cancel-booking-dialog"
 
@@ -93,6 +98,11 @@ export function TripDetail({ tripId }: { tripId: string }) {
     queryFn: async () => unwrapAction(await fetchPax({ bookingId: tripId })),
   })
 
+  const { data: days } = useQuery({
+    queryKey: qk.bookings.days(tripId),
+    queryFn: async () => unwrapAction(await fetchTripDays({ bookingId: tripId })),
+  })
+
   const [costOpen, setCostOpen] = React.useState(false)
   const [editingCost, setEditingCost] = React.useState<TripCostRow | null>(null)
   const [deletingCost, setDeletingCost] = React.useState<TripCostRow | null>(null)
@@ -104,6 +114,9 @@ export function TripDetail({ tripId }: { tripId: string }) {
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [deletingAssignmentId, setDeletingAssignmentId] = React.useState<string | null>(null)
   const [deletingPaxId, setDeletingPaxId] = React.useState<string | null>(null)
+  const [dayOpen, setDayOpen] = React.useState(false)
+  const [editingDay, setEditingDay] = React.useState<BookingDay | null>(null)
+  const [deletingDayId, setDeletingDayId] = React.useState<string | null>(null)
   const [tab, setTab] = React.useState("costs")
 
   const statusMutation = useActionMutation({
@@ -131,6 +144,13 @@ export function TripDetail({ tripId }: { tripId: string }) {
     successMessage: "Passenger removed",
     invalidate: [qk.bookings.all],
     onSuccess: () => setDeletingPaxId(null),
+  })
+
+  const removeDayMutation = useActionMutation({
+    action: deleteTripDay,
+    successMessage: "Day removed",
+    invalidate: [qk.bookings.days(tripId)],
+    onSuccess: () => setDeletingDayId(null),
   })
 
   const deleteBookingMutation = useActionMutation({
@@ -407,9 +427,24 @@ export function TripDetail({ tripId }: { tripId: string }) {
             <TabsTrigger value="pax">
               Passengers{pax?.length ? ` (${pax.length})` : ""}
             </TabsTrigger>
+            <TabsTrigger value="itinerary">
+              Itinerary{days?.length ? ` (${days.length})` : ""}
+            </TabsTrigger>
             <TabsTrigger value="summary">Breakdown</TabsTrigger>
           </TabsList>
 
+          {tab === "itinerary" && (
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingDay(null)
+                setDayOpen(true)
+              }}
+            >
+              <PlusIcon data-icon="inline-start" />
+              Add day
+            </Button>
+          )}
           {tab === "costs" && (
             <Button
               size="sm"
@@ -521,6 +556,58 @@ export function TripDetail({ tripId }: { tripId: string }) {
                   >
                     <XCircleIcon className="size-4" />
                   </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </TabsContent>
+
+        <TabsContent value="itinerary">
+          {!days?.length ? (
+            <div className="rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground">
+              <BedIcon className="mx-auto mb-2 size-6 text-muted-foreground/60" />
+              No day-by-day plan yet.
+            </div>
+          ) : (
+            <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+              {days.map((d) => (
+                <li key={d.id} className="flex items-start justify-between gap-3 px-5 py-4">
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      Day {d.dayNumber}: {d.title}
+                    </p>
+                    {d.stayNote && (
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        Stay: {d.stayNote}
+                      </p>
+                    )}
+                    {d.description && (
+                      <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
+                        {d.description}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Edit day"
+                      onClick={() => {
+                        setEditingDay(d)
+                        setDayOpen(true)
+                      }}
+                    >
+                      <PencilIcon className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Delete day"
+                      onClick={() => setDeletingDayId(d.id)}
+                    >
+                      <Trash2Icon className="size-4" />
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -640,6 +727,17 @@ export function TripDetail({ tripId }: { tripId: string }) {
 
       <PaxDialog open={paxOpen} onOpenChange={setPaxOpen} bookingId={tripId} />
 
+      <TripDayDialog
+        open={dayOpen}
+        onOpenChange={(open) => {
+          setDayOpen(open)
+          if (!open) setEditingDay(null)
+        }}
+        bookingId={tripId}
+        day={editingDay}
+        nextDayNumber={(days?.length ?? 0) + 1}
+      />
+
       <CancelBookingDialog
         open={cancelOpen}
         onOpenChange={setCancelOpen}
@@ -690,6 +788,17 @@ export function TripDetail({ tripId }: { tripId: string }) {
         variant="destructive"
         isPending={removePaxMutation.isPending}
         onConfirm={() => deletingPaxId && removePaxMutation.mutate({ id: deletingPaxId })}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deletingDayId)}
+        onOpenChange={(open) => !open && setDeletingDayId(null)}
+        title="Remove this day?"
+        description="This can't be undone."
+        confirmLabel="Remove"
+        variant="destructive"
+        isPending={removeDayMutation.isPending}
+        onConfirm={() => deletingDayId && removeDayMutation.mutate({ id: deletingDayId })}
       />
     </div>
   )

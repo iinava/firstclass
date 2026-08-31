@@ -21,6 +21,7 @@ export const qk = {
     detail: (id: string) => ["leads", "detail", id] as const,
     stats: () => ["leads", "stats"] as const,
     activities: (id: string) => ["leads", "activities", id] as const,
+    destinations: (id: string) => ["leads", "destinations", id] as const,
   },
   followups: {
     all: ["followups"] as const,
@@ -33,6 +34,7 @@ export const qk = {
     all: ["itineraries"] as const,
     list: (params: ListParams = {}) => ["itineraries", "list", params] as const,
     detail: (id: string) => ["itineraries", "detail", id] as const,
+    options: () => ["itineraries", "options"] as const,
   },
   bookings: {
     all: ["bookings"] as const,
@@ -41,6 +43,7 @@ export const qk = {
     costs: (id: string) => ["bookings", "costs", id] as const,
     ledger: (id: string) => ["bookings", "ledger", id] as const,
     pax: (id: string) => ["bookings", "pax", id] as const,
+    days: (id: string) => ["bookings", "days", id] as const,
   },
   suppliers: {
     all: ["suppliers"] as const,

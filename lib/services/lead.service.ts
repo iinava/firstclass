@@ -17,9 +17,11 @@ import { db } from "@/db/drizzle"
 import { customers } from "@/db/schemas/customer.schema"
 import {
   leadActivities,
+  leadDestinations,
   leadFollowups,
   leads,
   type Lead,
+  type LeadDestination,
 } from "@/db/schemas/lead.schema"
 import { users } from "@/db/schemas/user.schema"
 import type { PaginatedResult } from "@/validations/common.validation"
@@ -277,6 +279,41 @@ export async function sweepMissedFollowups(): Promise<number> {
     )
     .returning({ id: leadFollowups.id })
   return result.length
+}
+
+// -------------------------------------------------------------- destinations
+
+export async function listDestinations(leadId: string): Promise<LeadDestination[]> {
+  return db
+    .select()
+    .from(leadDestinations)
+    .where(eq(leadDestinations.leadId, leadId))
+    .orderBy(asc(leadDestinations.sortOrder))
+}
+
+/**
+ * Replaces the full destination list for a lead — simpler and safer than
+ * diffing rows since the form always submits the complete list, not deltas.
+ */
+export async function replaceDestinations(
+  leadId: string,
+  rows: { destination: string; days: number | null }[]
+): Promise<void> {
+  await db.delete(leadDestinations).where(eq(leadDestinations.leadId, leadId))
+  if (rows.length === 0) return
+  await db.insert(leadDestinations).values(
+    rows.map((row, index) => ({
+      leadId,
+      destination: row.destination,
+      days: row.days ?? null,
+      sortOrder: index,
+    }))
+  )
+}
+
+/** "Munnar, Alleppey" — kept on `leads.destination` for search and display. */
+export function joinDestinations(rows: { destination: string }[]): string {
+  return rows.map((row) => row.destination).join(", ")
 }
 
 /** Users who can own a lead, for the assignee dropdown. */

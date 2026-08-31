@@ -32,6 +32,7 @@ import {
 } from "@/validations/booking.validation"
 import type { BookingListRow } from "@/lib/services/booking.service"
 import { fetchAssignableUsers } from "@/app/admin/leads/actions"
+import { fetchPackageOptions } from "@/app/admin/packages/actions"
 import { createBooking, updateBooking } from "../actions"
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -129,11 +130,18 @@ function TripForm({
     staleTime: 5 * 60 * 1000,
   })
 
+  const { data: packages } = useQuery({
+    queryKey: qk.itineraries.options(),
+    queryFn: async () => unwrapAction(await fetchPackageOptions()),
+    staleTime: 5 * 60 * 1000,
+  })
+
   const defaultValues = React.useMemo<BookingFormValues>(() => {
     if (booking) {
       return {
         ...EMPTY,
         customerId: booking.customerId,
+        itineraryId: booking.itineraryId,
         title: booking.title,
         destination: booking.destination ?? "",
         startDate: booking.startDate,
@@ -233,6 +241,19 @@ function TripForm({
       <form id="trip-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
         <FieldGroup>
           <CustomerPicker control={form.control} name="customerId" />
+
+          <SelectField
+            control={form.control}
+            name="itineraryId"
+            label="Package"
+            nullable
+            placeholder="No package — custom trip"
+            options={(packages ?? []).map((p) => ({
+              value: p.id,
+              label: `${p.code} — ${p.title}${p.destination ? ` (${p.destination})` : ""}`,
+            }))}
+            description="Selecting a package copies its day-by-day plan onto this trip, editable afterwards."
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField

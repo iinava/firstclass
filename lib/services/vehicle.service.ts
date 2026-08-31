@@ -122,6 +122,8 @@ export async function getVehicleOptions() {
       type: vehicles.type,
       seatingCapacity: vehicles.seatingCapacity,
       ownership: vehicles.ownership,
+      mileageKmpl: vehicles.mileageKmpl,
+      fuelPricePerLitre: vehicles.fuelPricePerLitre,
     })
     .from(vehicles)
     .where(and(alive, eq(vehicles.isActive, true)))

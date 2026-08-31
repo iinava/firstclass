@@ -3,8 +3,8 @@ import {
   listParamsSchema,
   optionalDateString,
   optionalMoneySchema,
+  optionalPhoneSchema,
   optionalText,
-  phoneSchema,
   requiredText,
   uuidSchema,
 } from "./common.validation"
@@ -50,38 +50,57 @@ export const FOLLOWUP_CHANNEL_LABELS: Record<
   other: "Other",
 }
 
+/** One destination + how many days the customer wants to spend there. */
+export const LeadDestinationSchema = z.object({
+  destination: requiredText("Destination", 160),
+  days: z.coerce.number().int().min(0).max(365).optional().nullable(),
+})
+
 /**
  * Creating a lead also creates (or reuses) a customer, so the form carries the
  * customer fields inline — staff should never have to create a customer record
  * as a separate step while someone is on the phone.
  */
-export const CreateLeadSchema = z.object({
-  // Either pick an existing customer...
-  customerId: uuidSchema.optional().nullable(),
-  // ...or supply these to create/match one by phone.
-  customerName: requiredText("Customer name", 120),
-  customerPhone: phoneSchema,
+export const CreateLeadSchema = z
+  .object({
+    // Either pick an existing customer...
+    customerId: uuidSchema.optional().nullable(),
+    // ...or supply these to create one.
+    customerName: optionalText(120),
+    customerPhone: optionalPhoneSchema,
 
-  destination: optionalText(160),
-  travelDate: optionalDateString,
-  durationDays: z.coerce.number().int().min(0).max(365).optional().nullable(),
-  adults: z.coerce.number().int().min(1, "At least 1 adult").max(200).default(1),
-  children: z.coerce.number().int().min(0).max(200).default(0),
-  budget: optionalMoneySchema,
-  status: leadStatusSchema.default("new"),
-  priority: leadPrioritySchema.default("medium"),
-  source: leadSourceSchema.default("phone"),
-  assignedTo: uuidSchema.optional().nullable(),
-  requirements: optionalText(2000),
+    destinations: z
+      .array(LeadDestinationSchema)
+      .min(1, "Add at least one destination"),
+    travelDate: optionalDateString,
+    durationDays: z.coerce.number().int().min(0).max(365).optional().nullable(),
+    adults: z.coerce.number().int().min(1, "At least 1 adult").max(200).default(1),
+    children: z.coerce.number().int().min(0).max(200).default(0),
+    budget: optionalMoneySchema,
+    status: leadStatusSchema.default("new"),
+    priority: leadPrioritySchema.default("medium"),
+    source: leadSourceSchema.default("phone"),
+    assignedTo: uuidSchema.optional().nullable(),
+    requirements: optionalText(2000),
 
-  /** Optional first follow-up, scheduled at creation time. */
-  followupAt: z.string().optional().nullable(),
-  followupNote: optionalText(500),
-})
+    /** Optional first follow-up, scheduled at creation time. */
+    followupAt: z.string().optional().nullable(),
+    followupNote: optionalText(500),
+  })
+  .refine((v) => Boolean(v.customerId) || Boolean(v.customerName), {
+    message: "Enter the customer's name",
+    path: ["customerName"],
+  })
+  .refine((v) => Boolean(v.customerId) || Boolean(v.customerPhone), {
+    message: "Enter the customer's phone number",
+    path: ["customerPhone"],
+  })
 
 export const UpdateLeadSchema = z.object({
   id: uuidSchema,
-  destination: optionalText(160),
+  destinations: z
+    .array(LeadDestinationSchema)
+    .min(1, "Add at least one destination"),
   travelDate: optionalDateString,
   durationDays: z.coerce.number().int().min(0).max(365).optional().nullable(),
   adults: z.coerce.number().int().min(1).max(200),
@@ -161,6 +180,7 @@ export type CreateLeadInput = z.output<typeof CreateLeadSchema>
 export type CreateLeadValues = z.input<typeof CreateLeadSchema>
 export type UpdateLeadInput = z.output<typeof UpdateLeadSchema>
 export type UpdateLeadValues = z.input<typeof UpdateLeadSchema>
+export type LeadDestinationValues = z.input<typeof LeadDestinationSchema>
 export type LeadListParams = z.output<typeof LeadListParamsSchema>
 export type CreateFollowupValues = z.input<typeof CreateFollowupSchema>
 export type CompleteFollowupValues = z.input<typeof CompleteFollowupSchema>

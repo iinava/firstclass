@@ -55,6 +55,8 @@ const EMPTY: VehicleFormValues = {
   defaultDriverId: null,
   ratePerKm: "",
   ratePerDay: "",
+  mileageKmpl: undefined,
+  fuelPricePerLitre: "",
   insuranceExpiry: "",
   fitnessExpiry: "",
   pucExpiry: "",
@@ -124,6 +126,10 @@ function VehicleForm({
             defaultDriverId: vehicle.defaultDriverId,
             ratePerKm: vehicle.ratePerKm ? String(toRupees(vehicle.ratePerKm)) : "",
             ratePerDay: vehicle.ratePerDay ? String(toRupees(vehicle.ratePerDay)) : "",
+            mileageKmpl: vehicle.mileageKmpl ?? undefined,
+            fuelPricePerLitre: vehicle.fuelPricePerLitre
+              ? String(toRupees(vehicle.fuelPricePerLitre))
+              : "",
             insuranceExpiry: vehicle.insuranceExpiry ?? "",
             fitnessExpiry: vehicle.fitnessExpiry ?? "",
             pucExpiry: vehicle.pucExpiry ?? "",
@@ -214,6 +220,18 @@ function VehicleForm({
 
             <MoneyField control={form.control} name="ratePerKm" label="Rate per km (₹)" />
             <MoneyField control={form.control} name="ratePerDay" label="Rate per day (₹)" />
+            <NumberField
+              control={form.control}
+              name="mileageKmpl"
+              label="Mileage (km/l)"
+              min={0}
+              max={200}
+            />
+            <MoneyField
+              control={form.control}
+              name="fuelPricePerLitre"
+              label="Fuel price per litre (₹)"
+            />
           </div>
 
           <div className="grid gap-4 rounded-lg border border-dashed p-4 sm:grid-cols-3">
