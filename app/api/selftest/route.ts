@@ -540,6 +540,9 @@ export async function GET(request: Request) {
         ownership: "owned",
         defaultDriverId: driver.id,
         ratePerKm: "22",
+        ratePerDay: "3200",
+        mileageKmpl: 12,
+        fuelPricePerLitre: "96",
         insuranceExpiry: iso(300),
         isActive: true,
       })
@@ -550,6 +553,12 @@ export async function GET(request: Request) {
       "registration is normalised to uppercase, no spaces",
       vehicle.regNumber === "KL07ZZ0001",
       vehicle.regNumber
+    )
+    expect("mileage is stored", vehicle.mileageKmpl === 12, String(vehicle.mileageKmpl))
+    expect(
+      "fuel price is stored as paise",
+      vehicle.fuelPricePerLitre === 9600,
+      String(vehicle.fuelPricePerLitre)
     )
 
     mustFail(
@@ -575,7 +584,13 @@ export async function GET(request: Request) {
     )
     expect("vehicle type filter holds", list.rows.every((r) => r.type === "tempo_traveller"))
 
-    must("fetchVehicleOptions", await fleetActions.fetchVehicleOptions())
+    const vehicleOptions = must("fetchVehicleOptions", await fleetActions.fetchVehicleOptions())
+    const ownOption = vehicleOptions.find((v) => v.id === vehicle.id)
+    expect(
+      "options carry the standing rates for cost pre-fill",
+      ownOption?.ratePerDay === 320000 && ownOption?.mileageKmpl === 12,
+      JSON.stringify(ownOption)
+    )
     must("fetchDrivers", await fleetActions.fetchDrivers({ search: TAG }))
 
     must(
@@ -621,12 +636,14 @@ export async function GET(request: Request) {
         dayNumber: 1,
         title: "Kochi → Munnar",
         description: "Drive up through the tea estates, evening at leisure.",
+        hotelSupplierId: supplierId || null,
         breakfast: false,
         lunch: true,
         dinner: true,
       })
     )
     bin.day.push(day.id)
+    expect("day's hotel supplier was saved", day.hotelSupplierId === supplierId, day.hotelSupplierId ?? "null")
 
     must(
       "updateDay",
@@ -668,6 +685,20 @@ export async function GET(request: Request) {
       await packageActions.fetchItineraryDetail({ id: itinerary.id })
     )
     expect("detail carries the day", detail.days.length === 1, `${detail.days.length} days`)
+    expect(
+      "day's hotel name is joined from the supplier",
+      detail.days[0]?.hotelName === `${TAG} Backwater Resort & Spa`,
+      detail.days[0]?.hotelName ?? "null"
+    )
+
+    const packageOptions = must(
+      "fetchPackageOptions",
+      await packageActions.fetchPackageOptions()
+    )
+    expect(
+      "the new package appears in the options list",
+      packageOptions.some((p) => p.id === itinerary.id)
+    )
 
     must(
       "updateItinerary",
@@ -732,6 +763,23 @@ export async function GET(request: Request) {
     )
     expect("kind filter holds", list.rows.every((r) => r.kind === "custom"))
 
+    // A second day survives the delete below — the "bookings" section needs
+    // at least one day left on this package to prove seeding a trip from it
+    // actually copies something.
+    const day2 = must(
+      "saveDay (day 2)",
+      await packageActions.saveDay({
+        itineraryId: itinerary.id,
+        dayNumber: 2,
+        title: "Munnar leisure day",
+        hotelSupplierId: supplierId || null,
+        breakfast: true,
+        lunch: false,
+        dinner: true,
+      })
+    )
+    bin.day.push(day2.id)
+
     must("deleteDay", await packageActions.deleteDay({ id: day.id }))
     must("deleteItinerary (clone)", await packageActions.deleteItinerary({ id: clone.id }))
   })
@@ -744,7 +792,10 @@ export async function GET(request: Request) {
       await leadActions.createLead({
         customerName: `${TAG} Vinod Nair`,
         customerPhone: phone(),
-        destination: "Wayanad",
+        destinations: [
+          { destination: "Wayanad", days: 2 },
+          { destination: "Coorg", days: 1 },
+        ],
         travelDate: iso(45),
         durationDays: 3,
         adults: 4,
@@ -761,6 +812,21 @@ export async function GET(request: Request) {
     bin.lead.push(lead.id)
     if (lead.customerId) bin.customer.push(lead.customerId)
     expect("lead gets a code", Boolean(lead.code), "no code")
+    expect(
+      "destinations are joined onto the summary field",
+      lead.destination === "Wayanad, Coorg",
+      lead.destination ?? "null"
+    )
+
+    const destinations = must(
+      "fetchLeadDestinations",
+      await leadActions.fetchLeadDestinations({ leadId: lead.id })
+    )
+    expect(
+      "both destination rows were saved",
+      destinations.length === 2 && destinations[0].destination === "Wayanad",
+      JSON.stringify(destinations)
+    )
 
     const stats = must("fetchLeadStats", await leadActions.fetchLeadStats())
     expect("stats return counts", typeof stats.total === "number")
@@ -789,17 +855,22 @@ export async function GET(request: Request) {
     )
     expect("priority filter holds", byPriority.rows.every((r) => r.priority === "high"))
 
-    must(
+    const updated = must(
       "updateLead",
       await leadActions.updateLead({
         id: lead.id,
-        destination: "Wayanad & Coorg",
+        destinations: [{ destination: "Wayanad" }],
         adults: 4,
         children: 2,
         budget: "72000",
         priority: "high",
         source: "instagram",
       })
+    )
+    expect(
+      "updating destinations replaces the old set",
+      updated.destination === "Wayanad",
+      updated.destination ?? "null"
     )
 
     mustFail(
@@ -960,6 +1031,55 @@ export async function GET(request: Request) {
     const fetched = must("fetchBooking", await bookingActions.fetchBooking({ id: booking.id }))
     expect("fetched booking matches", fetched.id === booking.id)
 
+    // ------------------------------------------------------------- itinerary
+
+    const seededDays = must(
+      "fetchTripDays (seeded from the package)",
+      await bookingActions.fetchTripDays({ bookingId: booking.id })
+    )
+    expect(
+      "the package's day was copied onto the trip",
+      seededDays.length === 1 && seededDays[0].hotelName === `${TAG} Backwater Resort & Spa`,
+      JSON.stringify(seededDays)
+    )
+
+    const day2 = must(
+      "saveTripDay",
+      await bookingActions.saveTripDay({
+        bookingId: booking.id,
+        // The seeded day copied dayNumber 2 straight from the package — this
+        // one has to land on a number that isn't already taken.
+        dayNumber: 3,
+        title: "Alleppey houseboat",
+        hotelSupplierId: supplierId || null,
+        breakfast: true,
+        lunch: true,
+        dinner: true,
+      })
+    )
+
+    must(
+      "updateTripDay",
+      await bookingActions.updateTripDay({
+        id: day2.id,
+        bookingId: booking.id,
+        dayNumber: 3,
+        title: "Alleppey houseboat (upgraded)",
+        stayNote: "Premium deck room",
+        breakfast: true,
+        lunch: true,
+        dinner: true,
+      })
+    )
+
+    const daysAfterAdd = must(
+      "fetchTripDays after adding a day",
+      await bookingActions.fetchTripDays({ bookingId: booking.id })
+    )
+    expect("both days are listed", daysAfterAdd.length === 2, `${daysAfterAdd.length}`)
+
+    must("deleteTripDay", await bookingActions.deleteTripDay({ id: day2.id }))
+
     must("fetchBookingOptions", await bookingActions.fetchBookingOptions({ search: TAG }))
 
     const byStatus = must(
@@ -1032,6 +1152,18 @@ export async function GET(request: Request) {
     bin.cost.push(cost.id)
     expect("cost amount is quantity × unit", cost.costAmount === 2560000, String(cost.costAmount))
 
+    const noDescCost = must(
+      "createTripCost without a description",
+      await bookingActions.createTripCost({
+        bookingId: booking.id,
+        category: "toll_parking",
+        quantity: 1,
+        unitCost: "150",
+        status: "planned",
+      } as never)
+    )
+    bin.cost.push(noDescCost.id)
+
     const cancelledCost = must(
       "createTripCost (cancelled line)",
       await bookingActions.createTripCost({
@@ -1046,7 +1178,11 @@ export async function GET(request: Request) {
     bin.cost.push(cancelledCost.id)
 
     const costs = must("fetchTripCosts", await bookingActions.fetchTripCosts({ bookingId: booking.id }))
-    expect("both cost lines are listed", costs.length === 2, `${costs.length}`)
+    expect("all three cost lines are listed", costs.length === 3, `${costs.length}`)
+    expect(
+      "the description-less line falls back to its category",
+      costs.some((c) => c.id === noDescCost.id && c.description === null)
+    )
 
     const ledger1 = must(
       "ledger after costs",
@@ -1054,10 +1190,10 @@ export async function GET(request: Request) {
     )
     expect(
       "cancelled cost lines are excluded from P&L",
-      ledger1.cost === 2560000,
+      ledger1.cost === 2575000,
       String(ledger1.cost)
     )
-    expect("profit = revenue − cost", ledger1.profit === 4620000 - 2560000, String(ledger1.profit))
+    expect("profit = revenue − cost", ledger1.profit === 4620000 - 2575000, String(ledger1.profit))
 
     must(
       "updateTripCost",
@@ -1087,9 +1223,24 @@ export async function GET(request: Request) {
           startDate: iso(10),
           endDate: iso(14),
           startOdometer: 45210,
+          addTransportCost: true,
+          costDays: 4,
+          costPerDay: "3200",
         })
       )
       bin.assignment.push(assignment.id)
+
+      const costsAfterAssign = must(
+        "fetchTripCosts after assignVehicle",
+        await bookingActions.fetchTripCosts({ bookingId: booking.id })
+      )
+      const transportCost = costsAfterAssign.find((c) => c.category === "transport")
+      expect(
+        "assigning a vehicle also records its transport cost",
+        transportCost?.costAmount === 1280000,
+        JSON.stringify(transportCost)
+      )
+      if (transportCost) bin.cost.push(transportCost.id)
 
       mustFail(
         "double-booking the same vehicle is rejected",
