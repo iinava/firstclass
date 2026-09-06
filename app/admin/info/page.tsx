@@ -791,9 +791,9 @@ export default function InfoPage() {
               <>
                 Add a <strong>day</strong> at a time: day number, title,
                 description, an <strong>overnight stay</strong> picked from your
-                hotel/homestay/resort suppliers — not typed — with an optional
-                note for the room type, and which meals are included — breakfast,
-                lunch, dinner. Not in the supplier list yet? Add it under{" "}
+                hotel/homestay/resort/houseboat suppliers — not typed — with
+                an optional note for the room type, and which meals are
+                included — breakfast, lunch, dinner. Not in the supplier list yet? Add it under{" "}
                 <a href="#suppliers" className="underline hover:text-foreground">
                   Suppliers
                 </a>{" "}
@@ -1089,8 +1089,9 @@ export default function InfoPage() {
       {/* --------------------------------------------------------- suppliers */}
       <Section {...section("suppliers")}>
         <p className="text-muted-foreground">
-          Everyone you buy from — hotels, homestays, resorts, transporters,
-          guides, activity operators, restaurants, airlines and agents.
+          Everyone you buy from — hotels, homestays, resorts, houseboats,
+          transporters, guides, activity operators, restaurants, airlines and
+          agents.
         </p>
 
         <Fields

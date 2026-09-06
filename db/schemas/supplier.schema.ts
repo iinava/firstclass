@@ -15,6 +15,7 @@ export const supplierTypeEnum = pgEnum("supplier_type", [
   "hotel",
   "homestay",
   "resort",
+  "houseboat",
   "transport",
   "guide",
   "activity",

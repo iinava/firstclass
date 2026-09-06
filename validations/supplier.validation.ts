@@ -14,6 +14,7 @@ export const SUPPLIER_TYPES = [
   "hotel",
   "homestay",
   "resort",
+  "houseboat",
   "transport",
   "guide",
   "activity",
@@ -26,12 +27,18 @@ export const SUPPLIER_TYPES = [
 export const supplierTypeSchema = z.enum(SUPPLIER_TYPES)
 
 /** Supplier types that can be picked as a day's overnight stay. */
-export const HOTEL_SUPPLIER_TYPES = ["hotel", "homestay", "resort"] as const
+export const HOTEL_SUPPLIER_TYPES = [
+  "hotel",
+  "homestay",
+  "resort",
+  "houseboat",
+] as const
 
 export const SUPPLIER_TYPE_LABELS: Record<(typeof SUPPLIER_TYPES)[number], string> = {
   hotel: "Hotel",
   homestay: "Homestay",
   resort: "Resort",
+  houseboat: "Houseboat",
   transport: "Transport",
   guide: "Guide",
   activity: "Activity",

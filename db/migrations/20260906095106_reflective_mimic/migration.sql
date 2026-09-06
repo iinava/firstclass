@@ -1,0 +1,1 @@
+ALTER TYPE "supplier_type" ADD VALUE 'houseboat' BEFORE 'transport';
