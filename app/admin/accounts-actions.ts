@@ -132,6 +132,22 @@ export const createSupplierPayment = defineAction({
   permission: "payment:create",
   schema: CreateSupplierPaymentSchema,
   handler: async (input, { session }) => {
+    // A payment tied to a cost line must not exceed what is still owed on it:
+    // applyPaymentToCostItem clamps paid_amount at the cost, so the excess would
+    // vanish from the line while still sitting in the payables ledger.
+    if (input.tripCostItemId) {
+      const line = await bookingService.getTripCost(input.tripCostItemId)
+      if (!line) throw new ActionFailure("Cost line not found")
+
+      const outstanding = line.costAmount - line.paidAmount
+      if (input.amount > outstanding) {
+        throw new ActionFailure(
+          `Only ${formatMoney(outstanding)} is outstanding on this cost line`,
+          { amount: [`Cannot exceed ${formatMoney(outstanding)}`] }
+        )
+      }
+    }
+
     const number = await nextSupplierPaymentNumber(new Date(input.paidAt))
 
     const payment = await accounts.createSupplierPayment({
@@ -160,6 +176,9 @@ export const createSupplierPayment = defineAction({
     })
 
     revalidatePath("/admin/payments")
+    // The supplier list's "due" is summed from the cost lines this just moved.
+    revalidatePath("/admin/suppliers")
+    if (input.bookingId) revalidatePath(`/admin/trips/${input.bookingId}`)
     return payment
   },
 })

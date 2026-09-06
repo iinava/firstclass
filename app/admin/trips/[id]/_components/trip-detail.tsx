@@ -13,6 +13,7 @@ import {
   GaugeIcon,
   IndianRupeeIcon,
   MoreHorizontalIcon,
+  BanknoteIcon,
   PencilIcon,
   PlusIcon,
   PrinterIcon,
@@ -67,6 +68,7 @@ import { AssignVehicleDialog } from "./assign-vehicle-dialog"
 import { OdometerDialog } from "./odometer-dialog"
 import { TripFormDialog } from "../../_components/trip-form-dialog"
 import { ReceiptDialog } from "./receipt-dialog"
+import { SupplierPaymentDialog } from "./supplier-payment-dialog"
 import { TripCostDialog } from "./trip-cost-dialog"
 import { TripDayDialog } from "./trip-day-dialog"
 import { PaxDialog } from "./pax-dialog"
@@ -108,6 +110,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
   const [costOpen, setCostOpen] = React.useState(false)
   const [editingCost, setEditingCost] = React.useState<TripCostRow | null>(null)
   const [deletingCost, setDeletingCost] = React.useState<TripCostRow | null>(null)
+  const [payingCost, setPayingCost] = React.useState<TripCostRow | null>(null)
   const [receiptOpen, setReceiptOpen] = React.useState(false)
   const [assignOpen, setAssignOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
@@ -224,6 +227,19 @@ export function TripDetail({ tripId }: { tripId: string }) {
         className: "w-20",
         cell: (row) => (
           <div className="flex justify-end gap-1">
+            {/* Only for lines that name a supplier and still owe them
+                something — a payment has to attach to both. */}
+            {row.supplierId && row.paidAmount < row.costAmount && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Record supplier payment"
+                title="Record supplier payment"
+                onClick={() => setPayingCost(row)}
+              >
+                <BanknoteIcon className="size-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon-sm"
@@ -731,6 +747,11 @@ export function TripDetail({ tripId }: { tripId: string }) {
         bookingId={tripId}
         balance={ledger?.balance ?? 0}
         isFirstPayment={(ledger?.received ?? 0) === 0}
+      />
+
+      <SupplierPaymentDialog
+        costItem={payingCost}
+        onOpenChange={(open) => !open && setPayingCost(null)}
       />
 
       <AssignVehicleDialog
