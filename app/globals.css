@@ -161,14 +161,169 @@
     @apply font-sans;
   }
 }
+/* ---------------------------------------------------------------------------
+ * Printed stationery.
+ *
+ * `.letterhead` reproduces the company letterhead ("letter head.pdf") as an A4
+ * sheet. Every offset below is a millimetre measured off that artwork and is
+ * stated in sheet coordinates — distance from the edge of the paper — which the
+ * markup preserves by giving the header and footer bands the full sheet width
+ * and their exact heights. Printing therefore needs no second set of numbers:
+ * @page carries no margins, and the bands are table sections, so the browser
+ * repeats them on every sheet and reserves their height on each one.
+ * ------------------------------------------------------------------------ */
+.letterhead {
+  --sheet-width: 210mm;
+  --sheet-height: 297mm;
+  --sheet-side: 10mm; /* the artwork's left and right margin */
+  --head-band: 54mm; /* down to the navy rule at 45mm, plus air */
+  --foot-band: 22mm;
+  --brand-navy: #1e2b5e;
+  --brand-gold: #f9bb14;
+  --brand-ink: #58595b;
+
+  position: relative;
+  isolation: isolate;
+  width: var(--sheet-width);
+  min-height: var(--sheet-height);
+  margin-inline: auto;
+  background: #fff;
+  color: #1c1c1c;
+  font-family: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+  font-size: 9.5pt;
+  line-height: 1.5;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.letterhead-sheet {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  /* On screen this pushes the footer band down to the foot of the sheet; a
+     document longer than one page simply grows, and print paginates it. */
+  height: var(--sheet-height);
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.letterhead-sheet td {
+  padding: 0;
+  vertical-align: top;
+}
+
+/* The two bands span the full sheet, so their children are positioned in sheet
+   coordinates: the header from the top edge, the footer from the bottom. */
+.letterhead-head {
+  position: relative;
+  height: var(--head-band);
+}
+
+.letterhead-foot {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--foot-band);
+}
+
+/* Holds the footer's height open at the end of every page. */
+.letterhead-foot-space {
+  height: var(--foot-band);
+}
+
+.letterhead-body {
+  padding-inline: var(--sheet-side);
+}
+
+.letterhead-wash {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden; /* the mark bleeds off the right and bottom edges */
+}
+
+.letterhead-wash-mark {
+  position: absolute;
+  top: 90.8mm;
+  left: 41.7mm;
+  display: block;
+  width: 168.4mm;
+  height: 206.3mm;
+}
+
+.letterhead-logo {
+  position: absolute;
+  top: 9.8mm;
+  left: var(--sheet-side);
+  display: block;
+  width: 53.2mm;
+  height: auto;
+}
+
+.letterhead-contact {
+  position: absolute;
+  top: 27.8mm;
+  right: var(--sheet-side);
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  font-size: 8.95pt;
+  line-height: 9.85pt;
+  font-style: normal;
+  color: var(--brand-ink);
+}
+
+.letterhead-contact-phone {
+  font-weight: 500;
+}
+
+.letterhead-rule {
+  position: absolute;
+  top: 44.95mm;
+  left: var(--sheet-side);
+  right: var(--sheet-side);
+  height: 0.5pt;
+  background: var(--brand-navy);
+}
+
+.letterhead-foot-text {
+  position: absolute;
+  bottom: 9.2mm;
+  left: var(--sheet-side);
+  right: var(--sheet-side);
+  font-size: 8.7pt;
+  line-height: 9.9pt;
+  color: var(--brand-ink);
+}
+
+.letterhead-foot-name {
+  font-weight: 600;
+  color: #4b4c4e;
+}
+
 /**
- * Printing. Only the trip invoice is ever printed, so the rule is blunt: strip
- * the app chrome and force a light page regardless of the user's theme.
+ * Printing. Only letterhead documents are ever printed, so the rule is blunt:
+ * strip the app chrome and force a light page regardless of the user's theme.
  */
 @media print {
+  /* No margins: the sheet *is* the page, and the letterhead supplies its own
+     margins. Anything outside the @page content box is clipped by Chrome, so
+     the header and footer have to live inside it. */
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
   [data-slot="sidebar-wrapper"] > [data-slot="sidebar"],
   [data-print-hide] {
     display: none !important;
+  }
+
+  html {
+    /* Without this the dark app theme prints the page black behind the sheet. */
+    color-scheme: light;
   }
 
   html,
@@ -177,7 +332,34 @@
     color: #000 !important;
   }
 
-  @page {
-    margin: 14mm;
+  /* The app shell must not add width, padding or a scroll context of its own. */
+  [data-slot="sidebar-wrapper"],
+  [data-slot="sidebar-inset"] {
+    display: block !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  .letterhead {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+  }
+
+  /* Let the table take exactly the height its content needs, so the footer band
+     lands at the foot of whichever page the document ends on. */
+  .letterhead-sheet {
+    height: auto;
+  }
+
+  /* Fixed rather than absolute, so these reprint on every sheet; with no @page
+     margin the page box is the sheet, so their offsets still read as edges. */
+  .letterhead-wash,
+  .letterhead-foot {
+    position: fixed;
   }
 }
