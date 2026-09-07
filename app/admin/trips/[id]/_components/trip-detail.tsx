@@ -18,6 +18,7 @@ import {
   PlusIcon,
   PrinterIcon,
   ReceiptIcon,
+  RotateCcwIcon,
   Trash2Icon,
   TrendingUpIcon,
   UsersIcon,
@@ -52,6 +53,7 @@ import {
 import type { TripCostRow } from "@/lib/services/booking.service"
 import type { BookingDay } from "@/db/schemas/booking.schema"
 import { removeAssignment, fetchAssignments } from "@/app/admin/fleet/actions"
+import { undoCostPayment } from "@/app/admin/accounts-actions"
 import {
   deleteBooking,
   deleteTripCost,
@@ -111,6 +113,7 @@ export function TripDetail({ tripId }: { tripId: string }) {
   const [editingCost, setEditingCost] = React.useState<TripCostRow | null>(null)
   const [deletingCost, setDeletingCost] = React.useState<TripCostRow | null>(null)
   const [payingCost, setPayingCost] = React.useState<TripCostRow | null>(null)
+  const [undoingCost, setUndoingCost] = React.useState<TripCostRow | null>(null)
   const [receiptOpen, setReceiptOpen] = React.useState(false)
   const [assignOpen, setAssignOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
@@ -136,6 +139,13 @@ export function TripDetail({ tripId }: { tripId: string }) {
     successMessage: "Cost line removed",
     invalidate: [qk.bookings.all, qk.reports.all],
     onSuccess: () => setDeletingCost(null),
+  })
+
+  const undoPayment = useActionMutation({
+    action: undoCostPayment,
+    successMessage: "Payment undone",
+    invalidate: [qk.bookings.all, qk.reports.all],
+    onSuccess: () => setUndoingCost(null),
   })
 
   const removeVehicle = useActionMutation({
@@ -238,6 +248,20 @@ export function TripDetail({ tripId }: { tripId: string }) {
                 onClick={() => setPayingCost(row)}
               >
                 <BanknoteIcon className="size-4" />
+              </Button>
+            )}
+            {/* Way back out of a payment recorded by mistake — until it is
+                undone the line is locked, since a cost can never be edited
+                below what has already gone to the supplier. */}
+            {row.paidAmount > 0 && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Undo last supplier payment"
+                title="Undo last supplier payment"
+                onClick={() => setUndoingCost(row)}
+              >
+                <RotateCcwIcon className="size-4" />
               </Button>
             )}
             <Button
@@ -801,6 +825,29 @@ export function TripDetail({ tripId }: { tripId: string }) {
         open={cancelOpen}
         onOpenChange={setCancelOpen}
         bookingId={tripId}
+      />
+
+      <ConfirmDialog
+        open={Boolean(undoingCost)}
+        onOpenChange={(open) => !open && setUndoingCost(null)}
+        title="Undo the last payment on this line?"
+        description={
+          undoingCost
+            ? `${formatMoney(undoingCost.paidAmount)} is currently marked paid on "${
+                undoingCost.description || COST_CATEGORY_LABELS[undoingCost.category]
+              }". The payment stays in the ledger marked void, and its amount is taken back off this cost line.`
+            : ""
+        }
+        confirmLabel="Undo payment"
+        variant="destructive"
+        isPending={undoPayment.isPending}
+        onConfirm={() =>
+          undoingCost &&
+          undoPayment.mutate({
+            tripCostItemId: undoingCost.id,
+            reason: "Undone from the trip cost list",
+          })
+        }
       />
 
       <ConfirmDialog

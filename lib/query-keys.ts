@@ -67,6 +67,8 @@ export const qk = {
     all: ["accounts"] as const,
     receipts: (params: ListParams = {}) => ["accounts", "receipts", params] as const,
     expenses: (params: ListParams = {}) => ["accounts", "expenses", params] as const,
+    supplierPayments: (params: ListParams = {}) =>
+      ["accounts", "supplier-payments", params] as const,
     outstanding: (params: ListParams = {}) =>
       ["accounts", "outstanding", params] as const,
   },

@@ -21,6 +21,7 @@ import {
   ExpenseFormSchema,
   ExpenseListParamsSchema,
   ReceiptListParamsSchema,
+  UndoCostPaymentSchema,
   UpdateExpenseSchema,
   VoidReceiptSchema,
   VoidSupplierPaymentSchema,
@@ -184,17 +185,73 @@ export const createSupplierPayment = defineAction({
 })
 
 /**
- * Deliberately refuses rather than mutating a settled payment. Reversing entries
- * keep the payables ledger append-only, which is what makes it auditable.
+ * The payment row survives, flagged void with a reason, rather than being
+ * deleted or cancelled out by a second entry — the history stays one row per
+ * payment. What does change is the cost line it settled:
+ * a trip's "paid to suppliers" is summed from trip_cost_items.paid_amount, so
+ * without the reversal the line would stay locked at the wrong paid figure.
  */
 export const voidSupplierPayment = defineAction({
   name: "voidSupplierPayment",
   permission: "payment:void",
   schema: VoidSupplierPaymentSchema,
-  handler: async (_input): Promise<never> => {
-    throw new ActionFailure(
-      "Supplier payments cannot be voided — record a reversing payment instead"
-    )
+  handler: async ({ id, reason }, { session }) => {
+    const before = await accounts.getSupplierPayment(id)
+    if (!before) throw new ActionFailure("Payment not found")
+    if (before.voidedAt) throw new ActionFailure("This payment is already void")
+
+    const payment = await accounts.voidSupplierPayment(id, reason)
+    if (!payment) throw new ActionFailure("This payment is already void")
+
+    if (payment.tripCostItemId) {
+      await accounts.applyPaymentToCostItem(payment.tripCostItemId, -Number(payment.amount))
+    }
+
+    await recordAudit({
+      entity: "supplier_payments",
+      entityId: id,
+      action: "void",
+      summary: `Voided ${before.number} (${formatMoney(Number(before.amount))}) — ${reason}`,
+      session,
+    })
+
+    revalidatePath("/admin/payments")
+    revalidatePath("/admin/suppliers")
+    if (payment.bookingId) revalidatePath(`/admin/trips/${payment.bookingId}`)
+    return payment
+  },
+})
+
+/**
+ * "Undo mark as paid" on a trip cost row. The row itself only knows its paid
+ * total, so this resolves the latest live payment on the line and voids that —
+ * one click back out of a payment recorded by mistake.
+ */
+export const undoCostPayment = defineAction({
+  name: "undoCostPayment",
+  permission: "payment:void",
+  schema: UndoCostPaymentSchema,
+  handler: async ({ tripCostItemId, reason }, { session }) => {
+    const latest = await accounts.getLatestCostItemPayment(tripCostItemId)
+    if (!latest) throw new ActionFailure("No payment recorded against this cost line")
+
+    const payment = await accounts.voidSupplierPayment(latest.id, reason)
+    if (!payment) throw new ActionFailure("This payment is already void")
+
+    await accounts.applyPaymentToCostItem(tripCostItemId, -Number(payment.amount))
+
+    await recordAudit({
+      entity: "supplier_payments",
+      entityId: payment.id,
+      action: "void",
+      summary: `Undid ${payment.number} (${formatMoney(Number(payment.amount))}) on a cost line — ${reason}`,
+      session,
+    })
+
+    revalidatePath("/admin/payments")
+    revalidatePath("/admin/suppliers")
+    if (payment.bookingId) revalidatePath(`/admin/trips/${payment.bookingId}`)
+    return payment
   },
 })
 

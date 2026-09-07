@@ -186,7 +186,68 @@ export async function applyPaymentToCostItem(
     .where(eq(tripCostItems.id, tripCostItemId))
 }
 
-export async function listSupplierPayments(params: ReceiptListParams) {
+export async function getSupplierPayment(id: string) {
+  const [row] = await db
+    .select()
+    .from(supplierPayments)
+    .where(eq(supplierPayments.id, id))
+    .limit(1)
+  return row ?? null
+}
+
+/**
+ * The most recent live payment on a cost line — what the trip page's "undo"
+ * reverses. Ordered by creation, not `paidAt`: two payments can carry the same
+ * value date, and undo has to take back the one just recorded.
+ */
+export async function getLatestCostItemPayment(tripCostItemId: string) {
+  const [row] = await db
+    .select()
+    .from(supplierPayments)
+    .where(
+      and(
+        eq(supplierPayments.tripCostItemId, tripCostItemId),
+        isNull(supplierPayments.voidedAt)
+      )
+    )
+    .orderBy(desc(supplierPayments.createdAt))
+    .limit(1)
+  return row ?? null
+}
+
+/**
+ * Flags a payment void and hands back the amount to reverse. The row is never
+ * deleted and no reversing row is written — one payment stays one row, so the
+ * number keeps pointing at what actually happened. The cost line it settled has
+ * to be walked back separately via applyPaymentToCostItem, since a trip's
+ * "paid to suppliers" is summed from trip_cost_items.paid_amount.
+ */
+export async function voidSupplierPayment(id: string, reason: string) {
+  const [row] = await db
+    .update(supplierPayments)
+    .set({ voidedAt: new Date(), voidReason: reason })
+    .where(and(eq(supplierPayments.id, id), isNull(supplierPayments.voidedAt)))
+    .returning()
+  return row ?? null
+}
+
+export interface SupplierPaymentListRow {
+  id: string
+  number: string
+  amount: number
+  mode: string
+  reference: string | null
+  paidAt: string
+  voidedAt: Date | null
+  supplierId: string
+  supplierName: string
+  bookingId: string | null
+  bookingCode: string | null
+}
+
+export async function listSupplierPayments(
+  params: ReceiptListParams
+): Promise<PaginatedResult<SupplierPaymentListRow>> {
   const { page, pageSize, search, from, to } = params
   const filters = []
   if (search) {

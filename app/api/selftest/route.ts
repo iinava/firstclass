@@ -1409,12 +1409,6 @@ export async function GET(request: Request) {
         } as never)
       )
 
-      mustFail(
-        "supplier payments cannot be voided",
-        await accountActions.voidSupplierPayment({ id: payment.id, reason: "test" }),
-        "reversing payment"
-      )
-
       if (costId) {
         mustFail(
           "a paid cost line cannot be deleted",
@@ -1433,6 +1427,59 @@ export async function GET(request: Request) {
             status: "booked",
           }),
           "already been paid"
+        )
+
+        // Undo is the way back out of a payment entered by mistake — it hands
+        // the money back to the cost line, which unlocks the edit refused above.
+        must(
+          "undoCostPayment",
+          await accountActions.undoCostPayment({
+            tripCostItemId: costId,
+            reason: "Test undo",
+          })
+        )
+
+        const afterUndo = must(
+          "trip costs after undo",
+          await bookingActions.fetchTripCosts({ bookingId })
+        )
+        const undoneLine = afterUndo.find((row) => row.id === costId)
+        expect(
+          "undo takes the paid amount back off the line",
+          undoneLine?.paidAmount === 0,
+          String(undoneLine?.paidAmount)
+        )
+        expect(
+          "undo returns the line to unpaid",
+          undoneLine?.paymentStatus === "unpaid",
+          String(undoneLine?.paymentStatus)
+        )
+
+        must(
+          "a cost line can be cut once the payment is undone",
+          await bookingActions.updateTripCost({
+            id: costId,
+            bookingId,
+            category: "hotel",
+            description: "Cut after undo",
+            quantity: 1,
+            unitCost: "100",
+            status: "booked",
+          })
+        )
+
+        mustFail(
+          "undoing twice is refused",
+          await accountActions.undoCostPayment({
+            tripCostItemId: costId,
+            reason: "again",
+          }),
+          "no payment recorded"
+        )
+        mustFail(
+          "voiding an already void payment is refused",
+          await accountActions.voidSupplierPayment({ id: payment.id, reason: "again" }),
+          "already void"
         )
       }
     }

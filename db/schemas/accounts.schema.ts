@@ -147,6 +147,7 @@ export const supplierPayments = pgTable(
     paidAt: date("paid_at").notNull(),
     notes: text("notes"),
     voidedAt: timestamp("voided_at", { withTimezone: true }),
+    voidReason: text("void_reason"),
     paidBy: actor("paid_by"),
     ...timestamps,
   },
@@ -155,6 +156,8 @@ export const supplierPayments = pgTable(
     index("supplier_payments_supplier_idx").on(t.supplierId),
     index("supplier_payments_booking_idx").on(t.bookingId),
     index("supplier_payments_paid_at_idx").on(t.paidAt),
+    // Undo on a cost line looks up its latest live payment by this column.
+    index("supplier_payments_cost_item_idx").on(t.tripCostItemId),
   ]
 )
 

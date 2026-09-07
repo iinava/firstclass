@@ -24,11 +24,16 @@ import { formatDate, formatPhone } from "@/lib/format"
 import { formatMoneyCompact, formatMoneyShort } from "@/lib/money"
 import { qk } from "@/lib/query-keys"
 import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from "@/validations/accounts.validation"
-import type { ReceiptListRow } from "@/lib/services/accounts.service"
+import type {
+  ReceiptListRow,
+  SupplierPaymentListRow,
+} from "@/lib/services/accounts.service"
 import {
   fetchOutstanding,
   fetchReceipts,
+  fetchSupplierPayments,
   voidReceipt,
+  voidSupplierPayment,
 } from "@/app/admin/accounts-actions"
 
 const PAGE_SIZE = 25
@@ -90,13 +95,29 @@ export function PaymentsView() {
     queryFn: async () => unwrapAction(await fetchOutstanding()),
   })
 
+  const { data: payments, isLoading: paymentsLoading, isFetching: paymentsFetching } =
+    useQuery({
+      queryKey: qk.accounts.supplierPayments(queryParams),
+      queryFn: async () => unwrapAction(await fetchSupplierPayments(queryParams)),
+      placeholderData: (previous) => previous,
+    })
+
   const [voiding, setVoiding] = React.useState<ReceiptListRow | null>(null)
+  const [voidingPayment, setVoidingPayment] =
+    React.useState<SupplierPaymentListRow | null>(null)
 
   const voidMutation = useActionMutation({
     action: voidReceipt,
     successMessage: "Receipt voided",
     invalidate: [qk.accounts.all, qk.bookings.all],
     onSuccess: () => setVoiding(null),
+  })
+
+  const voidPaymentMutation = useActionMutation({
+    action: voidSupplierPayment,
+    successMessage: "Payment voided",
+    invalidate: [qk.accounts.all, qk.bookings.all, qk.suppliers.all],
+    onSuccess: () => setVoidingPayment(null),
   })
 
   const totalDue = (outstanding ?? []).reduce(
@@ -184,6 +205,97 @@ export function PaymentsView() {
               size="icon-sm"
               aria-label="Void receipt"
               onClick={() => setVoiding(row)}
+            >
+              <XCircleIcon className="size-4" />
+            </Button>
+          ),
+      },
+    ],
+    []
+  )
+
+  const supplierPaymentColumns = React.useMemo<
+    DataTableColumn<SupplierPaymentListRow>[]
+  >(
+    () => [
+      {
+        key: "number",
+        header: "Payment",
+        cell: (row) => (
+          <div className="min-w-0">
+            <p
+              className={
+                row.voidedAt
+                  ? "truncate font-mono font-medium line-through opacity-60"
+                  : "truncate font-mono font-medium"
+              }
+            >
+              {row.number}
+            </p>
+            <p className="truncate text-[13px] text-muted-foreground">{row.supplierName}</p>
+          </div>
+        ),
+      },
+      {
+        key: "booking",
+        header: "Trip",
+        hideOnMobile: true,
+        cell: (row) =>
+          row.bookingId ? (
+            <Link
+              href={`/admin/trips/${row.bookingId}`}
+              className="font-mono text-xs hover:underline"
+            >
+              {row.bookingCode}
+            </Link>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
+      },
+      {
+        key: "amount",
+        align: "right",
+        header: "Amount",
+        cell: (row) => (
+          <p className={row.voidedAt ? "tabular-nums line-through opacity-60" : "tabular-nums"}>
+            {formatMoneyShort(row.amount)}
+          </p>
+        ),
+      },
+      {
+        key: "mode",
+        header: "Mode",
+        hideOnMobile: true,
+        cell: (row) => (
+          <StatusBadge
+            status={row.mode}
+            label={PAYMENT_MODE_LABELS[row.mode as never]}
+            tone="neutral"
+          />
+        ),
+      },
+      {
+        key: "paidAt",
+        header: "Date",
+        cell: (row) => (
+          <span className="whitespace-nowrap text-muted-foreground">
+            {formatDate(row.paidAt)}
+          </span>
+        ),
+      },
+      {
+        key: "actions",
+        header: <span className="sr-only">Actions</span>,
+        className: "w-10",
+        cell: (row) =>
+          row.voidedAt ? (
+            <span className="text-xs text-muted-foreground">Void</span>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Void supplier payment"
+              onClick={() => setVoidingPayment(row)}
             >
               <XCircleIcon className="size-4" />
             </Button>
@@ -289,6 +401,7 @@ export function PaymentsView() {
           Outstanding{outstanding?.length ? ` (${outstanding.length})` : ""}
         </TabsTrigger>
         <TabsTrigger value="receipts">Receipts</TabsTrigger>
+        <TabsTrigger value="supplier-payments">Supplier payments</TabsTrigger>
       </TabsList>
 
       <TabsContent value="outstanding" className="flex flex-col gap-4">
@@ -364,6 +477,69 @@ export function PaymentsView() {
           }
         />
       </TabsContent>
+
+      <TabsContent value="supplier-payments" className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <InputGroup className="w-full sm:max-w-xs">
+            <InputGroupInput
+              placeholder="Search payment no, supplier…"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              aria-label="Search supplier payments"
+            />
+            <InputGroupAddon>
+              <SearchIcon className="size-4 text-muted-foreground" />
+            </InputGroupAddon>
+          </InputGroup>
+
+          <DateRangeFilter
+            from={params.from}
+            to={params.to}
+            onChange={(range) => {
+              setFilter("from", range.from ?? null)
+              setFilter("to", range.to ?? null)
+            }}
+            className="w-full sm:w-auto"
+          />
+        </div>
+
+        <DataTable
+          columns={supplierPaymentColumns}
+          rows={payments?.rows}
+          getRowId={(row) => row.id}
+          isLoading={paymentsLoading || paymentsFetching}
+          emptyTitle="No supplier payments yet"
+          emptyDescription="Pay a supplier from a trip's cost line and it shows up here."
+          pagination={
+            payments
+              ? {
+                  page: payments.page,
+                  pageCount: payments.pageCount,
+                  total: payments.total,
+                  pageSize: payments.pageSize,
+                  onPageChange: setPage,
+                }
+              : undefined
+          }
+        />
+      </TabsContent>
+
+      <ConfirmDialog
+        open={Boolean(voidingPayment)}
+        onOpenChange={(open) => !open && setVoidingPayment(null)}
+        title={`Void payment ${voidingPayment?.number}?`}
+        description="The payment stays in the ledger marked void, and its amount is taken back off the cost line it settled. This cannot be undone."
+        confirmLabel="Void payment"
+        variant="destructive"
+        isPending={voidPaymentMutation.isPending}
+        onConfirm={() =>
+          voidingPayment &&
+          voidPaymentMutation.mutate({
+            id: voidingPayment.id,
+            reason: "Voided from payments list",
+          })
+        }
+      />
 
       <ConfirmDialog
         open={Boolean(voiding)}

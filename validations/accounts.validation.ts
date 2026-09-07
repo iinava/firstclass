@@ -71,6 +71,12 @@ export const VoidSupplierPaymentSchema = z.object({
   reason: requiredText("Reason", 300),
 })
 
+/** Undo on the trip page targets the cost line — it finds the payment itself. */
+export const UndoCostPaymentSchema = z.object({
+  tripCostItemId: uuidSchema,
+  reason: requiredText("Reason", 300),
+})
+
 // ------------------------------------------------------------------ expenses
 
 export const ExpenseFormSchema = z.object({
