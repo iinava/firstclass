@@ -21,6 +21,7 @@ import {
   TextareaField,
   optionsFrom,
 } from "@/components/shared/form-fields"
+import { TripSelectField } from "@/components/shared/pickers"
 import { ImageUploadField } from "@/components/shared/image-upload-field"
 import { unwrapAction } from "@/hooks/use-action-mutation"
 import { useCrudForm } from "@/hooks/use-crud-form"
@@ -33,7 +34,6 @@ import {
   type ExpenseFormValues,
 } from "@/validations/accounts.validation"
 import type { ExpenseListRow } from "@/lib/services/accounts.service"
-import { fetchBookingOptions } from "@/app/admin/trips/actions"
 import { fetchVehicleOptions } from "@/app/admin/fleet/actions"
 import {
   createExpense,
@@ -85,11 +85,6 @@ function ExpenseForm({
     staleTime: 5 * 60 * 1000,
   })
 
-  const { data: bookings } = useQuery({
-    queryKey: qk.bookings.list({ options: true }),
-    queryFn: async () => unwrapAction(await fetchBookingOptions({ search: undefined })),
-    staleTime: 60 * 1000,
-  })
 
   const { data: vehicles } = useQuery({
     queryKey: qk.vehicles.list({ options: true }),
@@ -161,16 +156,11 @@ function ExpenseForm({
               label="Paid by"
               options={MODE_OPTIONS}
             />
-            <SelectField
+            <TripSelectField
               control={form.control}
               name="bookingId"
-              label="Trip"
               nullable
-              placeholder="Not trip-related"
-              options={(bookings ?? []).map((b) => ({
-                value: b.id,
-                label: `${b.code} — ${b.customerName}`,
-              }))}
+              placeholder="Not trip-related — type to search"
             />
             <SelectField
               control={form.control}

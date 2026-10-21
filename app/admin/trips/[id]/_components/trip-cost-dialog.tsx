@@ -23,6 +23,7 @@ import {
   TextareaField,
   optionsFrom,
 } from "@/components/shared/form-fields"
+import { SupplierSelectField } from "@/components/shared/pickers"
 import { unwrapAction } from "@/hooks/use-action-mutation"
 import { useCrudForm } from "@/hooks/use-crud-form"
 import { parseDate } from "@/lib/format"
@@ -37,7 +38,7 @@ import {
   type TripCostValues,
 } from "@/validations/booking.validation"
 import type { TripCostRow } from "@/lib/services/booking.service"
-import { fetchSupplierOptions, fetchSupplierRates } from "@/app/admin/suppliers/actions"
+import { fetchSupplierRates } from "@/app/admin/suppliers/actions"
 import { fetchAssignments, fetchVehicleOptions } from "@/app/admin/fleet/actions"
 import { createTripCost, fetchTripDays, updateTripCost } from "../../actions"
 
@@ -86,12 +87,6 @@ function TripCostForm({
   onCancel: () => void
 }) {
   const isEdit = Boolean(cost)
-
-  const { data: suppliers } = useQuery({
-    queryKey: qk.suppliers.options(),
-    queryFn: async () => unwrapAction(await fetchSupplierOptions({ type: undefined })),
-    staleTime: 5 * 60 * 1000,
-  })
 
   const { data: vehicles } = useQuery({
     queryKey: qk.vehicles.list({ options: true }),
@@ -298,13 +293,11 @@ function TripCostForm({
               />
             )}
             {showSupplier && (
-              <SelectField
+              <SupplierSelectField
                 control={form.control}
                 name="supplierId"
-                label="Supplier"
                 nullable
-                placeholder="No supplier"
-                options={(suppliers ?? []).map((s) => ({ value: s.id, label: s.name }))}
+                placeholder="No supplier — type to search"
               />
             )}
 

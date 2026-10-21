@@ -23,6 +23,7 @@ import {
   TextareaField,
   optionsFrom,
 } from "@/components/shared/form-fields"
+import { SupplierSelectField } from "@/components/shared/pickers"
 import { unwrapAction } from "@/hooks/use-action-mutation"
 import { useCrudForm } from "@/hooks/use-crud-form"
 import { qk } from "@/lib/query-keys"
@@ -35,7 +36,6 @@ import {
   type VehicleFormValues,
 } from "@/validations/vehicle.validation"
 import type { VehicleListRow } from "@/lib/services/vehicle.service"
-import { fetchSupplierOptions } from "@/app/admin/suppliers/actions"
 import { createVehicle, fetchDrivers, updateVehicle } from "../actions"
 
 const TYPE_OPTIONS = optionsFrom(VEHICLE_TYPES, VEHICLE_TYPE_LABELS)
@@ -103,12 +103,6 @@ function VehicleForm({
   const { data: drivers } = useQuery({
     queryKey: qk.drivers.list(),
     queryFn: async () => unwrapAction(await fetchDrivers({ search: undefined })),
-    staleTime: 5 * 60 * 1000,
-  })
-
-  const { data: transporters } = useQuery({
-    queryKey: qk.suppliers.options(),
-    queryFn: async () => unwrapAction(await fetchSupplierOptions({ type: "transport" })),
     staleTime: 5 * 60 * 1000,
   })
 
@@ -196,16 +190,13 @@ function VehicleForm({
             />
 
             {ownership === "hired" && (
-              <SelectField
+              <SupplierSelectField
                 control={form.control}
                 name="supplierId"
                 label="Hired from"
+                type="transport"
                 nullable
-                placeholder="Select transporter"
-                options={(transporters ?? []).map((s) => ({
-                  value: s.id,
-                  label: s.name,
-                }))}
+                placeholder="Search transporters…"
               />
             )}
 

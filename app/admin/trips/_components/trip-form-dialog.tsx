@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/dialog"
 import { FieldGroup } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
-import { CustomerCombobox } from "@/components/shared/customer-combobox"
 import {
   DateField,
   MoneyField,
@@ -23,6 +22,7 @@ import {
   TextField,
   TextareaField,
 } from "@/components/shared/form-fields"
+import { CustomerSelectField, PackageSelectField } from "@/components/shared/pickers"
 import { unwrapAction } from "@/hooks/use-action-mutation"
 import { useCrudForm } from "@/hooks/use-crud-form"
 import { computeTotals, formatMoney, percentToBps, toPaise, toRupees } from "@/lib/money"
@@ -34,7 +34,6 @@ import {
 import type { Booking } from "@/db/schemas/booking.schema"
 import type { BookingListRow } from "@/lib/services/booking.service"
 import { fetchAssignableUsers } from "@/app/admin/leads/actions"
-import { fetchPackageOptions } from "@/app/admin/packages/actions"
 import { createBooking, updateBooking } from "../actions"
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -129,12 +128,6 @@ function TripForm({
   const { data: assignees } = useQuery({
     queryKey: qk.users.options(),
     queryFn: async () => unwrapAction(await fetchAssignableUsers()),
-    staleTime: 5 * 60 * 1000,
-  })
-
-  const { data: packages } = useQuery({
-    queryKey: qk.itineraries.options(),
-    queryFn: async () => unwrapAction(await fetchPackageOptions()),
     staleTime: 5 * 60 * 1000,
   })
 
@@ -249,18 +242,13 @@ function TripForm({
 
       <form id="trip-form" className="-mx-1 overflow-y-auto px-1" onSubmit={onSubmit} noValidate>
         <FieldGroup>
-          <CustomerCombobox control={form.control} name="customerId" />
+          <CustomerSelectField control={form.control} name="customerId" />
 
-          <SelectField
+          <PackageSelectField
             control={form.control}
             name="itineraryId"
-            label="Package"
             nullable
             placeholder="No package — custom trip"
-            options={(packages ?? []).map((p) => ({
-              value: p.id,
-              label: `${p.code} — ${p.title}${p.destination ? ` (${p.destination})` : ""}`,
-            }))}
             description="Selecting a package copies its day-by-day plan onto this trip, editable afterwards."
           />
 

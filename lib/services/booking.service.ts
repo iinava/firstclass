@@ -1,5 +1,5 @@
 import "server-only"
-import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm"
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm"
 import { db, type Tx } from "@/db/drizzle"
 import {
   bookingDays,
@@ -16,7 +16,11 @@ import { tripCostItems, type TripCostItem } from "@/db/schemas/trip-cost.schema"
 import { users } from "@/db/schemas/user.schema"
 import { vehicles } from "@/db/schemas/vehicle.schema"
 import { marginPercent, profit } from "@/lib/money"
-import type { PaginatedResult } from "@/validations/common.validation"
+import {
+  PICKER_LIMIT,
+  type PaginatedResult,
+  type PickerQuery,
+} from "@/validations/common.validation"
 import type { BookingListParams } from "@/validations/booking.validation"
 
 const alive = isNull(bookings.deletedAt)
@@ -180,28 +184,32 @@ export async function getBookingRaw(
   return row ?? null
 }
 
-export async function getBookingOptions(search?: string) {
+export async function getBookingOptions({ search, ids }: PickerQuery) {
   return db
     .select({
       id: bookings.id,
       code: bookings.code,
       title: bookings.title,
       customerName: customers.name,
-      grandTotal: bookings.grandTotal,
-      startDate: bookings.startDate,
     })
     .from(bookings)
     .innerJoin(customers, eq(customers.id, bookings.customerId))
     .where(
-      and(
-        alive,
-        search
-          ? or(ilike(bookings.code, `%${search}%`), ilike(customers.name, `%${search}%`))
-          : undefined
-      )
+      ids?.length
+        ? inArray(bookings.id, ids)
+        : and(
+            alive,
+            search
+              ? or(
+                  ilike(bookings.code, `%${search}%`),
+                  ilike(bookings.title, `%${search}%`),
+                  ilike(customers.name, `%${search}%`)
+                )
+              : undefined
+          )
     )
     .orderBy(desc(bookings.startDate))
-    .limit(100)
+    .limit(PICKER_LIMIT)
 }
 
 export async function createBooking(

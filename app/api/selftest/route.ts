@@ -693,11 +693,19 @@ export async function GET(request: Request) {
 
     const packageOptions = must(
       "fetchPackageOptions",
-      await packageActions.fetchPackageOptions()
+      await packageActions.fetchPackageOptions({ search: TAG })
     )
     expect(
-      "the new package appears in the options list",
-      packageOptions.some((p) => p.id === itinerary.id)
+      "the new package is found by searching the options",
+      packageOptions.some((p) => p.value === itinerary.id)
+    )
+    const resolvedPackage = must(
+      "fetchPackageOptions (by id)",
+      await packageActions.fetchPackageOptions({ ids: [itinerary.id] })
+    )
+    expect(
+      "a saved package id resolves to its label",
+      resolvedPackage.length === 1 && resolvedPackage[0].value === itinerary.id
     )
 
     must(

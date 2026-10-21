@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { Controller } from "react-hook-form"
-import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -17,17 +16,15 @@ import { Field, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
 import {
   NumberField,
-  SelectField,
   TextField,
   TextareaField,
 } from "@/components/shared/form-fields"
-import { unwrapAction } from "@/hooks/use-action-mutation"
+import { SupplierSelectField } from "@/components/shared/pickers"
 import { useCrudForm } from "@/hooks/use-crud-form"
 import { qk } from "@/lib/query-keys"
 import { TripDaySchema, type TripDayValues } from "@/validations/booking.validation"
 import { HOTEL_SUPPLIER_TYPES } from "@/validations/supplier.validation"
 import type { BookingDay } from "@/db/schemas/booking.schema"
-import { fetchSupplierOptions } from "@/app/admin/suppliers/actions"
 import { saveTripDay, updateTripDay } from "../../actions"
 
 export function TripDayDialog({
@@ -75,13 +72,6 @@ function TripDayForm({
   onCancel: () => void
 }) {
   const isEdit = Boolean(day)
-
-  const { data: hotels } = useQuery({
-    queryKey: qk.suppliers.options([...HOTEL_SUPPLIER_TYPES]),
-    queryFn: async () =>
-      unwrapAction(await fetchSupplierOptions({ type: [...HOTEL_SUPPLIER_TYPES] })),
-    staleTime: 5 * 60 * 1000,
-  })
 
   const defaultValues = React.useMemo<TripDayValues>(
     () => ({
@@ -147,16 +137,13 @@ function TripDayForm({
           />
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <SelectField
+            <SupplierSelectField
               control={form.control}
               name="hotelSupplierId"
               label="Overnight stay"
+              type={HOTEL_SUPPLIER_TYPES}
               nullable
-              placeholder="No hotel selected"
-              options={(hotels ?? []).map((h) => ({
-                value: h.id,
-                label: h.city ? `${h.name} (${h.city})` : h.name,
-              }))}
+              placeholder="No hotel — type to search"
               description="Add the hotel from Suppliers if it isn't listed."
             />
             <TextField

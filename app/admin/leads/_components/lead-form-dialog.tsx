@@ -16,7 +16,7 @@ import {
 import { DatePicker } from "@/components/ui/date-picker"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { CustomerCombobox } from "@/components/shared/customer-combobox"
+import { CustomerSelectField } from "@/components/shared/pickers"
 import { OptionSelect, optionsFrom } from "@/components/shared/option-select"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
@@ -246,7 +246,7 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
                 </div>
 
                 {customerMode === "existing" ? (
-                  <CustomerCombobox control={form.control} name="customerId" />
+                  <CustomerSelectField control={form.control} name="customerId" />
                 ) : (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Controller

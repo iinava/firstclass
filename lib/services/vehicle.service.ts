@@ -61,7 +61,6 @@ export async function listVehicles(
       seatingCapacity: vehicles.seatingCapacity,
       ownership: vehicles.ownership,
       supplierId: vehicles.supplierId,
-      supplierId: vehicles.supplierId,
       defaultDriverId: vehicles.defaultDriverId,
       ratePerKm: vehicles.ratePerKm,
       ratePerDay: vehicles.ratePerDay,

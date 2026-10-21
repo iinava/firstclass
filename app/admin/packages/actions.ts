@@ -8,7 +8,11 @@ import { generateShareToken, nextPackageCode, nextQuoteCode, shareTokenExpiry } 
 import * as service from "@/lib/services/itinerary.service"
 import { storage } from "@/lib/storage"
 import { MAX_IMAGES_PER_ITINERARY } from "@/lib/storage/types"
-import { uuidSchema } from "@/validations/common.validation"
+import {
+  PickerQuerySchema,
+  uuidSchema,
+  type PickerOption,
+} from "@/validations/common.validation"
 import {
   CloneItinerarySchema,
   CreateItinerarySchema,
@@ -52,7 +56,15 @@ export const fetchItineraries = defineAction({
 export const fetchPackageOptions = defineAction({
   name: "fetchPackageOptions",
   permission: "itinerary:view",
-  handler: async (_input: void) => service.getPackageOptions(),
+  schema: PickerQuerySchema,
+  handler: async (query): Promise<PickerOption[]> => {
+    const rows = await service.getPackageOptions(query)
+    return rows.map((p) => ({
+      value: p.id,
+      label: `${p.code} — ${p.title}`,
+      hint: p.destination || undefined,
+    }))
+  },
 })
 
 export const fetchItineraryDetail = defineAction({
