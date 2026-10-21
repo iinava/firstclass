@@ -24,7 +24,11 @@ import {
   type LeaveRequest,
 } from "@/db/schemas/hrms.schema"
 import { users } from "@/db/schemas/user.schema"
-import type { PaginatedResult } from "@/validations/common.validation"
+import {
+  PICKER_LIMIT,
+  type PaginatedResult,
+  type PickerQuery,
+} from "@/validations/common.validation"
 import type {
   AttendanceListParams,
   EmployeeListParams,
@@ -37,6 +41,28 @@ export interface EmployeeListRow extends Employee {
   /** Days marked present in the current calendar month. */
   presentThisMonth: number
   pendingLeaves: number
+}
+
+export async function getEmployeeOptions({ search, ids }: PickerQuery) {
+  return db
+    .select({ id: employees.id, name: employees.name, empCode: employees.empCode })
+    .from(employees)
+    .where(
+      ids?.length
+        ? inArray(employees.id, ids)
+        : and(
+            alive,
+            eq(employees.status, "active"),
+            search
+              ? or(
+                  ilike(employees.name, `%${search}%`),
+                  ilike(employees.empCode, `%${search}%`)
+                )
+              : undefined
+          )
+    )
+    .orderBy(asc(employees.name))
+    .limit(PICKER_LIMIT)
 }
 
 export async function listEmployees(

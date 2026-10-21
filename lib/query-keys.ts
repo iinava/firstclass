@@ -14,6 +14,7 @@ export const qk = {
     list: (params: ListParams = {}) => ["customers", "list", params] as const,
     detail: (id: string) => ["customers", "detail", id] as const,
     search: (term: string) => ["customers", "search", term] as const,
+    options: () => ["customers", "options"] as const,
   },
   leads: {
     all: ["leads"] as const,
@@ -44,6 +45,7 @@ export const qk = {
     ledger: (id: string) => ["bookings", "ledger", id] as const,
     pax: (id: string) => ["bookings", "pax", id] as const,
     days: (id: string) => ["bookings", "days", id] as const,
+    options: () => ["bookings", "options"] as const,
   },
   suppliers: {
     all: ["suppliers"] as const,
@@ -76,6 +78,7 @@ export const qk = {
     all: ["hrms"] as const,
     employees: (params: ListParams = {}) => ["hrms", "employees", params] as const,
     employee: (id: string) => ["hrms", "employee", id] as const,
+    employeeOptions: () => ["hrms", "employee-options"] as const,
     attendance: (params: ListParams = {}) => ["hrms", "attendance", params] as const,
     leaves: (params: ListParams = {}) => ["hrms", "leaves", params] as const,
   },

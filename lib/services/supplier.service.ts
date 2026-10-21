@@ -8,7 +8,11 @@ import {
   type SupplierRate,
 } from "@/db/schemas/supplier.schema"
 import { tripCostItems } from "@/db/schemas/trip-cost.schema"
-import type { PaginatedResult } from "@/validations/common.validation"
+import {
+  PICKER_LIMIT,
+  type PaginatedResult,
+  type PickerQuery,
+} from "@/validations/common.validation"
 import type { SupplierListParams } from "@/validations/supplier.validation"
 
 const alive = isNull(suppliers.deletedAt)
@@ -124,9 +128,20 @@ export async function getSupplier(id: string): Promise<Supplier | null> {
 }
 
 /** Lightweight list for the supplier picker on trip cost lines and hotel selects. */
-export async function getSupplierOptions(
-  type?: Supplier["type"] | Supplier["type"][]
-) {
+export async function getSupplierOptions({
+  type,
+  search,
+  ids,
+}: PickerQuery & { type?: Supplier["type"] | Supplier["type"][] }) {
+  // Resolving saved ids skips the type/active filters — a line that already
+  // points at a since-deactivated supplier must still show its name.
+  if (ids?.length) {
+    return db
+      .select({ id: suppliers.id, name: suppliers.name, city: suppliers.city })
+      .from(suppliers)
+      .where(inArray(suppliers.id, ids))
+  }
+
   const typeFilter = Array.isArray(type)
     ? inArray(suppliers.type, type)
     : type
@@ -134,16 +149,20 @@ export async function getSupplierOptions(
       : undefined
 
   return db
-    .select({
-      id: suppliers.id,
-      name: suppliers.name,
-      type: suppliers.type,
-      city: suppliers.city,
-    })
+    .select({ id: suppliers.id, name: suppliers.name, city: suppliers.city })
     .from(suppliers)
-    .where(and(alive, eq(suppliers.isActive, true), typeFilter))
+    .where(
+      and(
+        alive,
+        eq(suppliers.isActive, true),
+        typeFilter,
+        search
+          ? or(ilike(suppliers.name, `%${search}%`), ilike(suppliers.city, `%${search}%`))
+          : undefined
+      )
+    )
     .orderBy(asc(suppliers.name))
-    .limit(500)
+    .limit(PICKER_LIMIT)
 }
 
 export async function createSupplier(

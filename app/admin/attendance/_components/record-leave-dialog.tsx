@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -19,7 +18,7 @@ import {
   TextareaField,
   optionsFrom,
 } from "@/components/shared/form-fields"
-import { unwrapAction } from "@/hooks/use-action-mutation"
+import { EmployeeSelectField } from "@/components/shared/pickers"
 import { useCrudForm } from "@/hooks/use-crud-form"
 import { qk } from "@/lib/query-keys"
 import {
@@ -28,7 +27,7 @@ import {
   LeaveRequestSchema,
   type LeaveRequestValues,
 } from "@/validations/hrms.validation"
-import { fetchEmployeeOptions, requestLeave } from "@/app/admin/employees/actions"
+import { requestLeave } from "@/app/admin/employees/actions"
 
 const TYPE_OPTIONS = optionsFrom(LEAVE_TYPES, LEAVE_TYPE_LABELS)
 
@@ -61,13 +60,6 @@ function RecordLeaveForm({
   onCancel: () => void
 }) {
   const today = new Date().toISOString().slice(0, 10)
-
-  const { data: employees } = useQuery({
-    queryKey: qk.hrms.employees({ options: true }),
-    queryFn: async () =>
-      unwrapAction(await fetchEmployeeOptions({ search: undefined })),
-    staleTime: 5 * 60 * 1000,
-  })
 
   const defaultValues = React.useMemo<LeaveRequestValues>(
     () => ({
@@ -111,16 +103,7 @@ function RecordLeaveForm({
 
       <form id="record-leave-form" onSubmit={onSubmit} noValidate>
         <FieldGroup>
-          <SelectField
-            control={form.control}
-            name="employeeId"
-            label="Employee"
-            placeholder="Choose an employee"
-            options={(employees ?? []).map((e) => ({
-              value: e.id,
-              label: `${e.name} — ${e.empCode}`,
-            }))}
-          />
+          <EmployeeSelectField control={form.control} name="employeeId" />
 
           <SelectField
             control={form.control}

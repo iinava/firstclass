@@ -1,10 +1,14 @@
 import "server-only"
-import { and, asc, count, desc, eq, ilike, isNull, or, sql } from "drizzle-orm"
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm"
 import { db } from "@/db/drizzle"
 import { customers, type Customer } from "@/db/schemas/customer.schema"
 import { bookings } from "@/db/schemas/booking.schema"
 import { leads } from "@/db/schemas/lead.schema"
-import type { PaginatedResult } from "@/validations/common.validation"
+import {
+  PICKER_LIMIT,
+  type PaginatedResult,
+  type PickerQuery,
+} from "@/validations/common.validation"
 import type {
   CreateCustomerInput,
   CustomerListParams,
@@ -19,6 +23,27 @@ const SORTABLE = {
 
 /** Only ever look at rows that haven't been soft-deleted. */
 const alive = isNull(customers.deletedAt)
+
+export async function getCustomerOptions({ search, ids }: PickerQuery) {
+  return db
+    .select({ id: customers.id, name: customers.name, phone: customers.phone })
+    .from(customers)
+    .where(
+      ids?.length
+        ? inArray(customers.id, ids)
+        : and(
+            alive,
+            search
+              ? or(
+                  ilike(customers.name, `%${search}%`),
+                  ilike(customers.phone, `%${search.replace(/[\s-]/g, "")}%`)
+                )
+              : undefined
+          )
+    )
+    .orderBy(asc(customers.name))
+    .limit(PICKER_LIMIT)
+}
 
 export interface CustomerListRow extends Customer {
   leadCount: number

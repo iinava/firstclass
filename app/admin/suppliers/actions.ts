@@ -5,7 +5,11 @@ import { z } from "zod"
 import { ActionFailure, defineAction } from "@/lib/action"
 import { diffChanges, recordAudit } from "@/lib/audit"
 import * as service from "@/lib/services/supplier.service"
-import { uuidSchema } from "@/validations/common.validation"
+import {
+  PickerQuerySchema,
+  uuidSchema,
+  type PickerOption,
+} from "@/validations/common.validation"
 import {
   CreateSupplierSchema,
   DeleteSupplierRateSchema,
@@ -27,10 +31,13 @@ export const fetchSuppliers = defineAction({
 export const fetchSupplierOptions = defineAction({
   name: "fetchSupplierOptions",
   permission: "supplier:view",
-  schema: z.object({
+  schema: PickerQuerySchema.extend({
     type: z.union([supplierTypeSchema, z.array(supplierTypeSchema)]).optional(),
   }),
-  handler: async ({ type }) => service.getSupplierOptions(type),
+  handler: async (query): Promise<PickerOption[]> => {
+    const rows = await service.getSupplierOptions(query)
+    return rows.map((s) => ({ value: s.id, label: s.name, hint: s.city ?? undefined }))
+  },
 })
 
 export const fetchSupplierRates = defineAction({

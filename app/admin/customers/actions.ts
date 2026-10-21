@@ -10,6 +10,18 @@ import {
   DeleteCustomerSchema,
   UpdateCustomerSchema,
 } from "@/validations/customer.validation"
+import { PickerQuerySchema, type PickerOption } from "@/validations/common.validation"
+import { formatPhone } from "@/lib/format"
+
+export const fetchCustomerOptions = defineAction({
+  name: "fetchCustomerOptions",
+  permission: "customer:view",
+  schema: PickerQuerySchema,
+  handler: async (query): Promise<PickerOption[]> => {
+    const rows = await customerService.getCustomerOptions(query)
+    return rows.map((c) => ({ value: c.id, label: c.name, hint: formatPhone(c.phone) }))
+  },
+})
 
 /**
  * Read action used by TanStack Query on the client. Reads go through the same

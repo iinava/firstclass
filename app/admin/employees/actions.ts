@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache"
 import { differenceInCalendarDays, parseISO } from "date-fns"
-import { z } from "zod"
 import { ActionFailure, AuthorizationError, defineAction } from "@/lib/action"
 import { diffChanges, recordAudit } from "@/lib/audit"
 import { nextEmployeeCode } from "@/lib/codes"
@@ -20,6 +19,7 @@ import {
   MarkAttendanceSchema,
   UpdateEmployeeSchema,
 } from "@/validations/hrms.validation"
+import { PickerQuerySchema, type PickerOption } from "@/validations/common.validation"
 
 export const fetchEmployees = defineAction({
   name: "fetchEmployees",
@@ -270,14 +270,9 @@ export const decideLeave = defineAction({
 export const fetchEmployeeOptions = defineAction({
   name: "fetchEmployeeOptions",
   permission: "hrms:view",
-  schema: z.object({ search: z.string().optional() }),
-  handler: async () => {
-    const result = await service.listEmployees({
-      page: 1,
-      pageSize: 100,
-      sortDir: "asc",
-      status: "active",
-    } as never)
-    return result.rows.map((e) => ({ id: e.id, name: e.name, empCode: e.empCode }))
+  schema: PickerQuerySchema,
+  handler: async (query): Promise<PickerOption[]> => {
+    const rows = await service.getEmployeeOptions(query)
+    return rows.map((e) => ({ value: e.id, label: e.name, hint: e.empCode }))
   },
 })

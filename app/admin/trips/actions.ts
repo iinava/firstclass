@@ -9,7 +9,11 @@ import { computeTotals, percentToBps } from "@/lib/money"
 import { canViewAll } from "@/lib/rbac"
 import * as service from "@/lib/services/booking.service"
 import * as leadService from "@/lib/services/lead.service"
-import { uuidSchema } from "@/validations/common.validation"
+import {
+  PickerQuerySchema,
+  uuidSchema,
+  type PickerOption,
+} from "@/validations/common.validation"
 import {
   BookingListParamsSchema,
   BookingPaxSchema,
@@ -106,8 +110,15 @@ export const fetchBooking = defineAction({
 export const fetchBookingOptions = defineAction({
   name: "fetchBookingOptions",
   permission: "booking:view",
-  schema: z.object({ search: z.string().optional() }),
-  handler: async ({ search }) => service.getBookingOptions(search),
+  schema: PickerQuerySchema,
+  handler: async (query): Promise<PickerOption[]> => {
+    const rows = await service.getBookingOptions(query)
+    return rows.map((b) => ({
+      value: b.id,
+      label: `${b.code} — ${b.customerName}`,
+      hint: b.title || undefined,
+    }))
+  },
 })
 
 export const fetchBookingLedger = defineAction({

@@ -47,6 +47,27 @@ export const requiredText = (label: string, max = 255) =>
 
 export const uuidSchema = z.uuid("Invalid identifier")
 
+/**
+ * Input every searchable picker sends to its options action. `search` drives
+ * the visible list; `ids` resolves the label of an already-saved value that
+ * isn't in the current page of results (an edit form opening on row #800).
+ */
+export const PickerQuerySchema = z.object({
+  search: z.string().trim().max(100).optional(),
+  ids: z.array(uuidSchema).max(50).optional(),
+})
+export type PickerQuery = z.infer<typeof PickerQuerySchema>
+
+/** How many rows a picker shows before the user narrows it down by typing. */
+export const PICKER_LIMIT = 50
+
+/** One row in a searchable picker. `hint` is the muted secondary line. */
+export interface PickerOption {
+  value: string
+  label: string
+  hint?: string
+}
+
 /** "YYYY-MM-DD" as stored in Postgres `date` columns. */
 export const dateStringSchema = z
   .string()

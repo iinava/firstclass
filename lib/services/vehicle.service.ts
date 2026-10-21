@@ -130,6 +130,7 @@ export async function getVehicleOptions() {
       type: vehicles.type,
       seatingCapacity: vehicles.seatingCapacity,
       ownership: vehicles.ownership,
+      supplierId: vehicles.supplierId,
       ratePerKm: vehicles.ratePerKm,
       ratePerDay: vehicles.ratePerDay,
       mileageKmpl: vehicles.mileageKmpl,

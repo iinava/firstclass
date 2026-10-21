@@ -10,7 +10,11 @@ import {
   type ItineraryDay,
 } from "@/db/schemas/itinerary.schema"
 import { suppliers } from "@/db/schemas/supplier.schema"
-import type { PaginatedResult } from "@/validations/common.validation"
+import {
+  PICKER_LIMIT,
+  type PaginatedResult,
+  type PickerQuery,
+} from "@/validations/common.validation"
 import type { ItineraryListParams } from "@/validations/itinerary.validation"
 
 const alive = isNull(itineraries.deletedAt)
@@ -110,20 +114,32 @@ export async function listItineraries(
 }
 
 /** Packages for the "convert to trip" picker — published, reusable products. */
-export async function getPackageOptions() {
+export async function getPackageOptions({ search, ids }: PickerQuery) {
   return db
     .select({
       id: itineraries.id,
       code: itineraries.code,
       title: itineraries.title,
       destination: itineraries.destination,
-      durationDays: itineraries.durationDays,
-      durationNights: itineraries.durationNights,
     })
     .from(itineraries)
-    .where(and(alive, eq(itineraries.kind, "package")))
+    .where(
+      ids?.length
+        ? inArray(itineraries.id, ids)
+        : and(
+            alive,
+            eq(itineraries.kind, "package"),
+            search
+              ? or(
+                  ilike(itineraries.code, `%${search}%`),
+                  ilike(itineraries.title, `%${search}%`),
+                  ilike(itineraries.destination, `%${search}%`)
+                )
+              : undefined
+          )
+    )
     .orderBy(desc(itineraries.createdAt))
-    .limit(300)
+    .limit(PICKER_LIMIT)
 }
 
 export async function getItinerary(id: string): Promise<Itinerary | null> {
