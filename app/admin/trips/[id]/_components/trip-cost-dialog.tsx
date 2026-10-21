@@ -43,7 +43,7 @@ import { createTripCost, fetchTripDays, updateTripCost } from "../../actions"
 
 const CATEGORY_OPTIONS = optionsFrom(COST_CATEGORIES, COST_CATEGORY_LABELS)
 
-/** Transport-ish categories get the vehicle picker instead of a supplier. */
+/** Transport-ish categories get the vehicle picker (transport keeps the supplier too). */
 const VEHICLE_CATEGORIES = new Set(["transport", "fuel", "toll_parking", "driver_allowance"])
 
 export function TripCostDialog({
@@ -137,6 +137,28 @@ function TripCostForm({
 
   const values = form.watch()
   const showVehicle = VEHICLE_CATEGORIES.has(values.category as string)
+  // A hired taxi is still a supplier bill — without a supplier on the line
+  // there is nothing for a supplier payment to attach to, so it could never
+  // be marked paid.
+  const showSupplier = !showVehicle || values.category === "transport"
+
+  // Picking a hired vehicle names its supplier. Only overwrites a supplier
+  // that is blank or was the previous vehicle's own, so a supplier chosen by
+  // hand survives a vehicle change.
+  const previousVehicleSupplier = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (values.category !== "transport") return
+    const vehicle = vehicles?.find((v) => v.id === values.vehicleId)
+    const vehicleSupplier = vehicle?.ownership === "hired" ? vehicle.supplierId : null
+    const current = (values.supplierId as string | null | undefined) ?? null
+    if (vehicleSupplier && (!current || current === previousVehicleSupplier.current)) {
+      if (current !== vehicleSupplier) {
+        form.setValue("supplierId", vehicleSupplier, { shouldDirty: true })
+      }
+    }
+    previousVehicleSupplier.current = vehicleSupplier
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values.category, values.vehicleId, vehicles])
 
   // The supplier's own rate card is exactly what "unit cost" and
   // "description" should come from — without this, staff re-type a number
@@ -262,7 +284,7 @@ function TripCostForm({
               ]}
             />
 
-            {showVehicle ? (
+            {showVehicle && (
               <SelectField
                 control={form.control}
                 name="vehicleId"
@@ -274,7 +296,8 @@ function TripCostForm({
                   label: `${v.regNumber} (${v.seatingCapacity} seats)`,
                 }))}
               />
-            ) : (
+            )}
+            {showSupplier && (
               <SelectField
                 control={form.control}
                 name="supplierId"
