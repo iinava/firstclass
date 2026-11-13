@@ -1,5 +1,11 @@
 import { z } from "zod"
-import { optionalText } from "./common.validation"
+import {
+  dateStringSchema,
+  moneySchema,
+  optionalText,
+  uuidSchema,
+} from "./common.validation"
+import { paymentModeSchema } from "./accounts.validation"
 
 /** "2026-08" — the month being paid. */
 export const monthSchema = z
@@ -20,5 +26,22 @@ export const PostPayrollSchema = z.object({
   notes: optionalText(500),
 })
 
+// ------------------------------------------------------------ salary advances
+
+export const SalaryAdvanceListSchema = z.object({ month: monthSchema })
+
+export const CreateSalaryAdvanceSchema = z.object({
+  employeeId: uuidSchema,
+  /** The month whose salary the advance is recovered from. */
+  month: monthSchema,
+  amount: moneySchema.refine((v) => v > 0, "Amount must be greater than zero"),
+  givenOn: dateStringSchema,
+  mode: paymentModeSchema.default("cash"),
+  notes: optionalText(500),
+})
+
+export const DeleteSalaryAdvanceSchema = z.object({ id: uuidSchema })
+
 export type PayrollPreviewInput = z.output<typeof PayrollPreviewSchema>
 export type PostPayrollInput = z.output<typeof PostPayrollSchema>
+export type SalaryAdvanceFormValues = z.input<typeof CreateSalaryAdvanceSchema>

@@ -7,10 +7,14 @@ import { recordAudit } from "@/lib/audit"
 import { nextExpenseNumber } from "@/lib/codes"
 import { formatMoney } from "@/lib/money"
 import * as accounts from "@/lib/services/accounts.service"
+import * as hrms from "@/lib/services/hrms.service"
 import * as payroll from "@/lib/services/payroll.service"
 import {
+  CreateSalaryAdvanceSchema,
+  DeleteSalaryAdvanceSchema,
   PayrollPreviewSchema,
   PostPayrollSchema,
+  SalaryAdvanceListSchema,
 } from "@/validations/payroll.validation"
 
 export const fetchPayrollPreview = defineAction({
@@ -50,6 +54,16 @@ export const postPayroll = defineAction({
         "No employee has a salary on record, so there is nothing to post"
       )
     }
+    // An advance that this month cannot cover would otherwise be locked into a
+    // posted month and never recovered.
+    if (preview.advanceIssues.length > 0) {
+      const first = preview.advanceIssues[0]
+      throw new ActionFailure(
+        `${first.name}'s advance of ${formatMoney(first.advance)} is more than ${
+          first.payable > 0 ? `their ${formatMoney(first.payable)} pay` : "anything payable"
+        } this month. Move it to another month before posting.`
+      )
+    }
     // Attendance may have been corrected between the screen loading and this
     // click. Paying a total the operator never saw is worse than making them
     // look again.
@@ -73,6 +87,7 @@ export const postPayroll = defineAction({
           employeeCount: preview.lines.length,
           grossTotal: preview.grossTotal,
           deductionTotal: preview.deductionTotal,
+          advanceTotal: preview.advanceTotal,
           netTotal: preview.netTotal,
           postedBy: session.userId,
           notes: notes ?? null,
@@ -98,16 +113,27 @@ export const postPayroll = defineAction({
             daysWeekOff: line.daysWeekOff,
             daysUnmarked: line.daysUnmarked,
             deduction: line.deduction,
+            advance: line.advance,
             netPay: line.netPay,
           },
           tx
         )
 
+        if (line.advance > 0) {
+          await payroll.lockAdvances(line.employeeId, preview.month, stored.id, tx)
+        }
+
+        // An advance can cover the whole month, leaving nothing more to pay —
+        // the advance's own expense already carries the cost.
+        if (line.netPay === 0) continue
+
         const expense = await accounts.createExpense(
           {
             number: await nextExpenseNumber(new Date(spentAt)),
             categoryId,
-            description: `Salary — ${line.name} (${preview.monthLabel})`,
+            description: `Salary — ${line.name} (${preview.monthLabel})${
+              line.advance > 0 ? ` after ${formatMoney(line.advance)} advance` : ""
+            }`,
             amount: line.netPay,
             spentAt,
             mode: "bank_transfer",
@@ -136,6 +162,124 @@ export const postPayroll = defineAction({
     revalidatePath("/admin/expenses")
     revalidatePath("/admin/reports")
     return { runId: run.id, netTotal: preview.netTotal }
+  },
+})
+
+// ------------------------------------------------------------ salary advances
+
+export const fetchSalaryAdvances = defineAction({
+  name: "fetchSalaryAdvances",
+  permission: "payroll:view",
+  schema: SalaryAdvanceListSchema,
+  handler: async ({ month }) => payroll.listAdvances(month),
+})
+
+/**
+ * Records money handed to an employee ahead of payday.
+ *
+ * The cash leaves the business now, so an expense is written now — under
+ * Salaries, dated the day it was given. When the month is posted, payroll pays
+ * only what is left, so the Salaries total for the person is still exactly what
+ * they earned.
+ */
+export const createSalaryAdvance = defineAction({
+  name: "createSalaryAdvance",
+  permission: "payroll:run",
+  schema: CreateSalaryAdvanceSchema,
+  handler: async (input, { session }) => {
+    const month = payroll.normaliseMonth(input.month)
+
+    if (await payroll.isMonthPosted(month)) {
+      throw new ActionFailure(
+        "That month's payroll is already posted — record the advance against a later month"
+      )
+    }
+    const employee = await hrms.getEmployee(input.employeeId)
+    if (!employee) {
+      throw new ActionFailure("Employee not found", { employeeId: ["Employee not found"] })
+    }
+
+    const categoryId = await payroll.getSalaryCategoryId()
+    const monthLabel = new Date(`${month}T00:00:00Z`).toLocaleDateString("en-IN", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    })
+
+    const advance = await txDb.transaction(async (tx) => {
+      const expense = await accounts.createExpense(
+        {
+          number: await nextExpenseNumber(new Date(input.givenOn)),
+          categoryId,
+          description: `Salary advance — ${employee.name} (from ${monthLabel} salary)`,
+          amount: input.amount,
+          spentAt: input.givenOn,
+          mode: input.mode,
+          notes: input.notes ?? null,
+          createdBy: session.userId,
+        },
+        tx
+      )
+
+      return payroll.createAdvance(
+        {
+          employeeId: employee.id,
+          month,
+          amount: input.amount,
+          givenOn: input.givenOn,
+          mode: input.mode,
+          notes: input.notes ?? null,
+          expenseId: expense.id,
+          createdBy: session.userId,
+        },
+        tx
+      )
+    })
+
+    await recordAudit({
+      entity: "salary_advances",
+      entityId: advance.id,
+      action: "create",
+      summary: `Recorded ${formatMoney(input.amount)} salary advance for ${
+        employee.name
+      }, recovered from ${monthLabel}`,
+      session,
+    })
+
+    revalidatePath("/admin/payroll")
+    revalidatePath("/admin/expenses")
+    return { id: advance.id }
+  },
+})
+
+/** Removes an advance recorded by mistake, along with the expense it wrote. */
+export const deleteSalaryAdvance = defineAction({
+  name: "deleteSalaryAdvance",
+  permission: "payroll:run",
+  schema: DeleteSalaryAdvanceSchema,
+  handler: async ({ id }, { session }) => {
+    const advance = await payroll.getAdvance(id)
+    if (!advance) throw new ActionFailure("Advance not found")
+    if (advance.payrollLineId || (await payroll.isMonthPosted(advance.month))) {
+      throw new ActionFailure(
+        "This advance was recovered in a posted payroll and can no longer be removed"
+      )
+    }
+
+    const removed = await txDb.transaction((tx) => payroll.softDeleteAdvance(id, tx))
+    if (!removed) throw new ActionFailure("Advance not found")
+
+    await recordAudit({
+      entity: "salary_advances",
+      entityId: id,
+      action: "delete",
+      summary: `Removed ${formatMoney(Number(advance.amount))} salary advance`,
+      session,
+    })
+
+    revalidatePath("/admin/payroll")
+    revalidatePath("/admin/expenses")
+    return { id }
   },
 })
 

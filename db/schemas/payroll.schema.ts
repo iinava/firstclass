@@ -8,9 +8,9 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core"
-import { actor, money, pk, timestamps } from "./_shared"
+import { actor, money, pk, softDelete, timestamps } from "./_shared"
 import { employees } from "./hrms.schema"
-import { expenses } from "./accounts.schema"
+import { expenses, paymentModeEnum } from "./accounts.schema"
 
 /**
  * Monthly salary runs.
@@ -33,6 +33,8 @@ export const payrollRuns = pgTable(
     /** Sum of the employees' monthly salaries, before deductions. */
     grossTotal: money("gross_total").notNull().default(0),
     deductionTotal: money("deduction_total").notNull().default(0),
+    /** Salary advances recovered in this run. Already paid out, so not in netTotal. */
+    advanceTotal: money("advance_total").notNull().default(0),
     netTotal: money("net_total").notNull().default(0),
     postedBy: actor("posted_by"),
     postedAt: timestamp("posted_at", { withTimezone: true }).notNull().defaultNow(),
@@ -85,6 +87,12 @@ export const payrollLines = pgTable(
     daysUnmarked: integer("days_unmarked").notNull().default(0),
 
     deduction: money("deduction").notNull().default(0),
+    /**
+     * Salary advances recovered from this month's pay. The advance was already
+     * booked as an expense on the day it was handed over, so netPay is what is
+     * left to pay: monthlySalary - deduction - advance.
+     */
+    advance: money("advance").notNull().default(0),
     netPay: money("net_pay").notNull(),
 
     /** The expense this line wrote, so the two can always be reconciled. */
@@ -99,7 +107,51 @@ export const payrollLines = pgTable(
   ]
 )
 
+/**
+ * Money an employee took ahead of payday, to be recovered from one month's pay.
+ *
+ * Recording an advance books an expense under Salaries straight away — the cash
+ * left the business that day — and payroll then pays only what remains. Over the
+ * month the employee's Salaries expense still adds up to exactly what they earned.
+ *
+ * `payrollLineId` is set when the month it is recovered in gets posted; from then
+ * on the advance is part of history and can no longer be changed or removed.
+ */
+export const salaryAdvances = pgTable(
+  "salary_advances",
+  {
+    id: pk(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id),
+    /** First day of the month whose salary this is recovered from. */
+    month: date("month").notNull(),
+    amount: money("amount").notNull(),
+    /** The day the money was handed over. */
+    givenOn: date("given_on").notNull(),
+    mode: paymentModeEnum("mode").notNull().default("cash"),
+    notes: text("notes"),
+    /** The expense written when the advance was handed over. */
+    expenseId: uuid("expense_id").references(() => expenses.id, {
+      onDelete: "set null",
+    }),
+    /** Set once the month is posted — the line this advance was recovered in. */
+    payrollLineId: uuid("payroll_line_id").references(() => payrollLines.id, {
+      onDelete: "set null",
+    }),
+    createdBy: actor("created_by"),
+    ...timestamps,
+    ...softDelete,
+  },
+  (t) => [
+    index("salary_advances_month_idx").on(t.month),
+    index("salary_advances_employee_idx").on(t.employeeId),
+  ]
+)
+
 export type PayrollRun = typeof payrollRuns.$inferSelect
 export type NewPayrollRun = typeof payrollRuns.$inferInsert
 export type PayrollLine = typeof payrollLines.$inferSelect
 export type NewPayrollLine = typeof payrollLines.$inferInsert
+export type SalaryAdvance = typeof salaryAdvances.$inferSelect
+export type NewSalaryAdvance = typeof salaryAdvances.$inferInsert

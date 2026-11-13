@@ -86,6 +86,7 @@ export const qk = {
     all: ["payroll"] as const,
     month: (month: string) => ["payroll", "month", month] as const,
     runs: ["payroll", "runs"] as const,
+    advances: (month: string) => ["payroll", "advances", month] as const,
   },
   reports: {
     all: ["reports"] as const,
