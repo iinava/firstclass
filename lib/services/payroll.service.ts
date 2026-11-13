@@ -1,11 +1,12 @@
 import "server-only"
-import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm"
 import { db, type Tx } from "@/db/drizzle"
 import { expenses, expenseCategories } from "@/db/schemas/accounts.schema"
 import { attendance, employees } from "@/db/schemas/hrms.schema"
 import {
   payrollLines,
   payrollRuns,
+  salaryAdvances,
   type PayrollRun,
 } from "@/db/schemas/payroll.schema"
 
@@ -33,6 +34,9 @@ export interface PayrollLinePreview {
   /** Unpaid days as a number, counting a half-day as 0.5. */
   unpaidDays: number
   deduction: number
+  /** Salary advances recovered from this month's pay (already paid out). */
+  advance: number
+  /** What is left to pay: monthlySalary - deduction - advance. */
   netPay: number
 }
 
@@ -43,7 +47,14 @@ export interface PayrollPreview {
   lines: PayrollLinePreview[]
   grossTotal: number
   deductionTotal: number
+  advanceTotal: number
   netTotal: number
+  /**
+   * Advances that cannot be recovered from this month as it stands — larger than
+   * the employee's pay, or taken by someone not on this run. Posting is refused
+   * until each is moved to another month or removed, so no advance is lost.
+   */
+  advanceIssues: { employeeId: string; name: string; advance: number; payable: number }[]
   /** Set once the month has been posted — the figures are then history. */
   posted: {
     runId: string
@@ -96,7 +107,7 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
   const existing = await getRun(first)
   if (existing) return storedPreview(existing, label)
 
-  const [staff, marks] = await Promise.all([
+  const [staff, marks, advances] = await Promise.all([
     db
       .select({
         id: employees.id,
@@ -124,7 +135,21 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
       .from(attendance)
       .where(and(gte(attendance.date, first), lte(attendance.date, last)))
       .groupBy(attendance.employeeId, attendance.status),
+
+    db
+      .select({
+        employeeId: salaryAdvances.employeeId,
+        name: employees.name,
+        total: sql<number>`coalesce(sum(${salaryAdvances.amount}), 0)::bigint`,
+      })
+      .from(salaryAdvances)
+      .innerJoin(employees, eq(employees.id, salaryAdvances.employeeId))
+      .where(and(eq(salaryAdvances.month, first), isNull(salaryAdvances.deletedAt)))
+      .groupBy(salaryAdvances.employeeId, employees.name),
   ])
+
+  const advanceBy = new Map(advances.map((a) => [a.employeeId, Number(a.total)]))
+  const advanceIssues: PayrollPreview["advanceIssues"] = []
 
   const byEmployee = new Map<string, Record<string, number>>()
   for (const mark of marks) {
@@ -179,6 +204,13 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
     // days in the month would otherwise produce a negative payout.
     const deduction = Math.min(salary, Math.round(dayRate * unpaidDays))
 
+    const earned = salary - deduction
+    const advance = advanceBy.get(person.id) ?? 0
+    advanceBy.delete(person.id)
+    if (advance > earned) {
+      advanceIssues.push({ employeeId: person.id, name: person.name, advance, payable: earned })
+    }
+
     lines.push({
       employeeId: person.id,
       empCode: person.empCode,
@@ -198,8 +230,22 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
       daysUnmarked,
       unpaidDays,
       deduction,
-      netPay: salary - deduction,
+      advance,
+      netPay: Math.max(0, earned - advance),
     })
+  }
+
+  // Whatever is left belongs to someone not on this run (no day rate, or no
+  // longer active) — there is no pay to recover it from.
+  for (const a of advances) {
+    if (advanceBy.has(a.employeeId)) {
+      advanceIssues.push({
+        employeeId: a.employeeId,
+        name: a.name,
+        advance: Number(a.total),
+        payable: 0,
+      })
+    }
   }
 
   return {
@@ -209,7 +255,9 @@ export async function getPayrollPreview(month: string): Promise<PayrollPreview> 
     lines,
     grossTotal: lines.reduce((sum, l) => sum + l.monthlySalary, 0),
     deductionTotal: lines.reduce((sum, l) => sum + l.deduction, 0),
+    advanceTotal: lines.reduce((sum, l) => sum + l.advance, 0),
     netTotal: lines.reduce((sum, l) => sum + l.netPay, 0),
+    advanceIssues,
     posted: null,
     missingSalary,
   }
@@ -260,6 +308,7 @@ async function storedPreview(
     daysUnmarked: line.daysUnmarked,
     unpaidDays: line.daysAbsent + line.daysUnpaidLeave + line.daysHalf * 0.5,
     deduction: Number(line.deduction),
+    advance: Number(line.advance),
     netPay: Number(line.netPay),
   }))
 
@@ -270,7 +319,9 @@ async function storedPreview(
     lines,
     grossTotal: Number(run.grossTotal),
     deductionTotal: Number(run.deductionTotal),
+    advanceTotal: Number(run.advanceTotal),
     netTotal: Number(run.netTotal),
+    advanceIssues: [],
     posted: {
       runId: run.id,
       postedAt: run.postedAt,
@@ -368,4 +419,117 @@ export async function listRunExpenses(runId: string) {
     .from(payrollLines)
     .innerJoin(expenses, eq(expenses.id, payrollLines.expenseId))
     .where(eq(payrollLines.runId, runId))
+}
+
+// ---------------------------------------------------------------- advances
+
+export interface SalaryAdvanceRow {
+  id: string
+  employeeId: string
+  empCode: string
+  name: string
+  month: string
+  amount: number
+  givenOn: string
+  mode: string
+  notes: string | null
+  expenseNumber: string | null
+  /** True once the month it is recovered in has been posted. */
+  locked: boolean
+}
+
+/** Every advance to be recovered from a month, oldest first. */
+export async function listAdvances(month: string): Promise<SalaryAdvanceRow[]> {
+  const first = normaliseMonth(month)
+  const rows = await db
+    .select({
+      advance: salaryAdvances,
+      empCode: employees.empCode,
+      name: employees.name,
+      expenseNumber: expenses.number,
+    })
+    .from(salaryAdvances)
+    .innerJoin(employees, eq(employees.id, salaryAdvances.employeeId))
+    .leftJoin(expenses, eq(expenses.id, salaryAdvances.expenseId))
+    .where(and(eq(salaryAdvances.month, first), isNull(salaryAdvances.deletedAt)))
+    .orderBy(asc(salaryAdvances.givenOn), asc(salaryAdvances.createdAt))
+
+  return rows.map(({ advance, empCode, name, expenseNumber }) => ({
+    id: advance.id,
+    employeeId: advance.employeeId,
+    empCode,
+    name,
+    month: advance.month,
+    amount: Number(advance.amount),
+    givenOn: advance.givenOn,
+    mode: advance.mode,
+    notes: advance.notes,
+    expenseNumber,
+    locked: advance.payrollLineId !== null,
+  }))
+}
+
+export async function getAdvance(id: string) {
+  const [row] = await db
+    .select()
+    .from(salaryAdvances)
+    .where(and(eq(salaryAdvances.id, id), isNull(salaryAdvances.deletedAt)))
+    .limit(1)
+  return row ?? null
+}
+
+/** Whether a month already has a posted run — advances for it are then closed. */
+export async function isMonthPosted(month: string): Promise<boolean> {
+  return (await getRun(normaliseMonth(month))) !== null
+}
+
+export async function createAdvance(
+  values: typeof salaryAdvances.$inferInsert,
+  client: Tx | typeof db = db
+) {
+  const [row] = await client.insert(salaryAdvances).values(values).returning()
+  return row
+}
+
+/** Removes an unrecovered advance and the expense it wrote, together. */
+export async function softDeleteAdvance(id: string, client: Tx | typeof db = db) {
+  const now = new Date()
+  const [row] = await client
+    .update(salaryAdvances)
+    .set({ deletedAt: now })
+    .where(
+      and(
+        eq(salaryAdvances.id, id),
+        isNull(salaryAdvances.deletedAt),
+        isNull(salaryAdvances.payrollLineId)
+      )
+    )
+    .returning()
+  if (row?.expenseId) {
+    await client
+      .update(expenses)
+      .set({ deletedAt: now })
+      .where(eq(expenses.id, row.expenseId))
+  }
+  return row ?? null
+}
+
+/** Ties a month's advances to the payroll line that recovered them. */
+export async function lockAdvances(
+  employeeId: string,
+  month: string,
+  lineId: string,
+  client: Tx | typeof db = db
+) {
+  await client
+    .update(salaryAdvances)
+    .set({ payrollLineId: lineId })
+    .where(
+      and(
+        eq(salaryAdvances.employeeId, employeeId),
+        eq(salaryAdvances.month, normaliseMonth(month)),
+        isNull(salaryAdvances.deletedAt),
+        isNull(salaryAdvances.payrollLineId)
+      )
+    )
 }

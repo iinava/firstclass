@@ -5,7 +5,11 @@ import { useQuery } from "@tanstack/react-query"
 import {
   BanknoteIcon,
   CheckCircle2Icon,
+  HandCoinsIcon,
+  LockIcon,
   MinusCircleIcon,
+  PlusIcon,
+  Trash2Icon,
   TriangleAlertIcon,
   UsersIcon,
 } from "lucide-react"
@@ -22,8 +26,17 @@ import { useListParams } from "@/hooks/use-list-params"
 import { formatDate, formatNumber } from "@/lib/format"
 import { formatMoney, formatMoneyShort } from "@/lib/money"
 import { qk } from "@/lib/query-keys"
-import type { PayrollLinePreview } from "@/lib/services/payroll.service"
-import { fetchPayrollPreview, postPayroll } from "@/app/admin/payroll/actions"
+import type {
+  PayrollLinePreview,
+  SalaryAdvanceRow,
+} from "@/lib/services/payroll.service"
+import {
+  deleteSalaryAdvance,
+  fetchPayrollPreview,
+  fetchSalaryAdvances,
+  postPayroll,
+} from "@/app/admin/payroll/actions"
+import { SalaryAdvanceDialog } from "./salary-advance-dialog"
 
 /** The current month as YYYY-MM. */
 function thisMonth(): string {
@@ -38,10 +51,24 @@ export function PayrollView({ canPost }: { canPost: boolean }) {
     : thisMonth()
 
   const [confirmOpen, setConfirmOpen] = React.useState(false)
+  const [advanceOpen, setAdvanceOpen] = React.useState(false)
+  const [removing, setRemoving] = React.useState<SalaryAdvanceRow | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: qk.payroll.month(month),
     queryFn: async () => unwrapAction(await fetchPayrollPreview({ month })),
+  })
+
+  const { data: advances, isLoading: advancesLoading } = useQuery({
+    queryKey: qk.payroll.advances(month),
+    queryFn: async () => unwrapAction(await fetchSalaryAdvances({ month })),
+  })
+
+  const removeMutation = useActionMutation({
+    action: deleteSalaryAdvance,
+    successMessage: "Advance removed",
+    invalidate: [qk.payroll.all, qk.accounts.all, qk.reports.all],
+    onSuccess: () => setRemoving(null),
   })
 
   const postMutation = useActionMutation({
@@ -138,6 +165,19 @@ export function PayrollView({ canPost }: { canPost: boolean }) {
           ),
       },
       {
+        key: "advance",
+        header: "Advance",
+        align: "right",
+        cell: (row) =>
+          row.advance > 0 ? (
+            <span className="tabular-nums text-red-600 dark:text-red-400">
+              −{formatMoneyShort(row.advance)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
         key: "net",
         header: "Net pay",
         align: "right",
@@ -165,25 +205,38 @@ export function PayrollView({ canPost }: { canPost: boolean }) {
           />
         </div>
 
-        {posted ? (
-          <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm">
-            <CheckCircle2Icon className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            <span>
-              Posted on {formatDate(posted.postedAt)} — {formatMoney(posted.netTotal)}{" "}
-              in Expenses
-            </span>
-          </div>
-        ) : (
-          canPost && (
-            <Button
-              disabled={isLoading || !data || data.lines.length === 0}
-              onClick={() => setConfirmOpen(true)}
-            >
-              <BanknoteIcon data-icon="inline-start" />
-              Post to expenses
+        <div className="flex flex-wrap items-center gap-2">
+          {canPost && !posted && (
+            <Button variant="outline" onClick={() => setAdvanceOpen(true)}>
+              <HandCoinsIcon data-icon="inline-start" />
+              Record advance
             </Button>
-          )
-        )}
+          )}
+          {posted ? (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm">
+              <CheckCircle2Icon className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <span>
+                Posted on {formatDate(posted.postedAt)} — {formatMoney(posted.netTotal)}{" "}
+                in Expenses
+              </span>
+            </div>
+          ) : (
+            canPost && (
+              <Button
+                disabled={
+                  isLoading ||
+                  !data ||
+                  data.lines.length === 0 ||
+                  data.advanceIssues.length > 0
+                }
+                onClick={() => setConfirmOpen(true)}
+              >
+                <BanknoteIcon data-icon="inline-start" />
+                Post to expenses
+              </Button>
+            )
+          )}
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -209,7 +262,13 @@ export function PayrollView({ canPost }: { canPost: boolean }) {
         <StatCard
           label="Net payable"
           value={isLoading ? "—" : formatMoneyShort(data?.netTotal ?? 0)}
-          sub={posted ? "Already posted" : "Not yet posted"}
+          sub={
+            data && data.advanceTotal > 0
+              ? `After ${formatMoneyShort(data.advanceTotal)} already paid as advances`
+              : posted
+                ? "Already posted"
+                : "Not yet posted"
+          }
           tone="positive"
           icon={BanknoteIcon}
         />
@@ -233,6 +292,28 @@ export function PayrollView({ canPost }: { canPost: boolean }) {
         </div>
       )}
 
+      {/* An advance bigger than the month's pay would be lost once the month is
+          posted, so posting waits until it is moved or removed. */}
+      {data && data.advanceIssues.length > 0 && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+          <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p>
+            <span className="font-medium">
+              {data.advanceIssues.length === 1 ? "An advance is" : "Some advances are"} larger
+              than this month&apos;s pay:
+            </span>{" "}
+            {data.advanceIssues
+              .map(
+                (i) =>
+                  `${i.name} took ${formatMoney(i.advance)} but is owed ${formatMoney(i.payable)}`
+              )
+              .join("; ")}
+            . Remove the advance below and record it again against a later month (or
+            split it across months) before posting.
+          </p>
+        </div>
+      )}
+
       <DataTable
         columns={columns}
         rows={data?.lines}
@@ -242,6 +323,90 @@ export function PayrollView({ canPost }: { canPost: boolean }) {
         emptyDescription="Active employees with a per-day salary on record appear here."
       />
 
+      <section className="flex flex-col gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Salary advances</h2>
+          <p className="text-sm text-muted-foreground">
+            Money taken ahead of payday, deducted from {data?.monthLabel ?? "this month"}
+            &apos;s pay. Each one is already in Expenses under Salaries.
+          </p>
+        </div>
+        {advancesLoading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : !advances || advances.length === 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+            <span>No advances to deduct this month.</span>
+            {canPost && !posted && (
+              <Button size="sm" variant="ghost" onClick={() => setAdvanceOpen(true)}>
+                <PlusIcon data-icon="inline-start" />
+                Record advance
+              </Button>
+            )}
+          </div>
+        ) : (
+          <ul className="divide-y rounded-lg border">
+            {advances.map((a) => (
+              <li key={a.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-medium">
+                    {a.name}{" "}
+                    <span className="text-[13px] font-normal text-muted-foreground">
+                      {a.empCode}
+                    </span>
+                  </p>
+                  <p className="truncate text-[13px] text-muted-foreground">
+                    Given {formatDate(a.givenOn)}
+                    {a.expenseNumber ? ` · ${a.expenseNumber}` : ""}
+                    {a.notes ? ` · ${a.notes}` : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="font-medium tabular-nums">{formatMoney(a.amount)}</span>
+                  {a.locked ? (
+                    <LockIcon
+                      className="size-4 text-muted-foreground"
+                      aria-label="Recovered in posted payroll"
+                    />
+                  ) : (
+                    canPost && (
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={`Remove ${a.name}'s advance`}
+                        onClick={() => setRemoving(a)}
+                      >
+                        <Trash2Icon />
+                      </Button>
+                    )
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <SalaryAdvanceDialog open={advanceOpen} onOpenChange={setAdvanceOpen} month={month} />
+
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => !open && setRemoving(null)}
+        title="Remove this advance?"
+        description={
+          removing ? (
+            <>
+              {removing.name}&apos;s {formatMoney(removing.amount)} advance and its
+              Salaries expense will both be removed, and it will no longer be deducted
+              from their pay.
+            </>
+          ) : null
+        }
+        confirmLabel="Remove advance"
+        variant="destructive"
+        isPending={removeMutation.isPending}
+        onConfirm={() => removing && removeMutation.mutate({ id: removing.id } as never)}
+      />
+
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
@@ -249,8 +414,12 @@ export function PayrollView({ canPost }: { canPost: boolean }) {
         description={
           <>
             This writes <strong>one expense per employee</strong> under Salaries,
-            dated the last day of the month — {data?.lines.length ?? 0} entries
-            totalling <strong>{formatMoney(data?.netTotal ?? 0)}</strong>. A month
+            dated the last day of the month, totalling{" "}
+            <strong>{formatMoney(data?.netTotal ?? 0)}</strong>
+            {data && data.advanceTotal > 0
+              ? ` (${formatMoney(data.advanceTotal)} of advances already paid is deducted and locked)`
+              : ""}
+            . A month
             can only be posted once, and there is no undo: a mistake has to be
             corrected on the Expenses screen.
           </>
