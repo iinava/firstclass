@@ -331,7 +331,9 @@ export function ItineraryDocument({
                         {inclusions.map((item, index) => (
                           <li key={index}>
                             <span aria-hidden="true">✓</span>
-                            <Inline text={item} />
+                            <span>
+                              <Inline text={item} />
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -345,7 +347,9 @@ export function ItineraryDocument({
                         {exclusions.map((item, index) => (
                           <li key={index}>
                             <span aria-hidden="true">✕</span>
-                            <Inline text={item} />
+                            <span>
+                              <Inline text={item} />
+                            </span>
                           </li>
                         ))}
                       </ul>

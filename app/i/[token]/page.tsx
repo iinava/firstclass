@@ -179,7 +179,7 @@ export default async function SharedItineraryPage({
             <MoonIcon className="size-3.5" />
             {nights} Nights · {itinerary.durationDays} Days
           </span>
-          <h1 className="max-w-4xl font-[family-name:var(--font-itin-serif)] text-3xl leading-tight text-balance sm:text-5xl">
+          <h1 className="max-w-4xl font-[family-name:var(--font-itin-serif)] text-3xl leading-tight text-balance break-words sm:text-5xl">
             {itinerary.title}
           </h1>
           {places.length > 0 && (
@@ -197,9 +197,9 @@ export default async function SharedItineraryPage({
         </div>
       </section>
 
-      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-8 sm:px-6 sm:py-12 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-10">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)] gap-8 px-4 py-8 sm:px-6 sm:py-12 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-10">
         {/* ------------------------------------------------ sidebar (price) */}
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:order-2 lg:self-start">
+        <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:order-2 lg:self-start">
           <div className="flex flex-col gap-4 rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
             {price ? (
               <div>
@@ -331,21 +331,15 @@ export default async function SharedItineraryPage({
                         </div>
 
                         {photos.length > 0 && (
-                          <div
-                            className={`grid gap-1 px-5 ${
-                              photos.length === 1
-                                ? "grid-cols-1"
-                                : photos.length === 2
-                                  ? "grid-cols-2"
-                                  : "grid-cols-3"
-                            }`}
-                          >
+                          // A row, not a fixed grid: if a photo fails to load and
+                          // removes itself, the rest widen to fill the space.
+                          <div className="flex gap-1 px-5">
                             {photos.map((url) => (
                               <SafeImage
                                 key={url}
                                 src={url}
                                 alt={day.title}
-                                className={`w-full rounded-xl object-cover ${
+                                className={`min-w-0 flex-1 rounded-xl object-cover ${
                                   photos.length === 1 ? "aspect-[16/9]" : "aspect-[4/3]"
                                 }`}
                               />
