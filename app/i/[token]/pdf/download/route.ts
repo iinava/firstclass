@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { getItineraryByShareToken } from "@/lib/services/itinerary.service"
-import { pdfFailure, pdfResponse, renderOrigin, renderPdf } from "@/lib/pdf/render-pdf"
 
 export const dynamic = "force-dynamic"
 
@@ -13,8 +12,10 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/i/[token]/pd
   const data = await getItineraryByShareToken(token)
   if (!data) return NextResponse.redirect(new URL(`/i/${token}`, request.url))
 
+  // Loaded on demand: react-pdf only needs to be in memory when someone downloads.
+  const { pdfFailure, pdfResponse, renderItineraryPdf } = await import("@/lib/pdf/itinerary-pdf")
   try {
-    const bytes = await renderPdf(`${renderOrigin(request)}/i/${token}/pdf`)
+    const bytes = await renderItineraryPdf(data)
     return pdfResponse(bytes, `${data.itinerary.title} - Itinerary`)
   } catch (error) {
     return pdfFailure(error)

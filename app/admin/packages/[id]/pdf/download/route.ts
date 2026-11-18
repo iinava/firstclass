@@ -1,17 +1,15 @@
-import type { NextRequest } from "next/server"
 import { requirePermission } from "@/lib/action"
-import { getItinerary } from "@/lib/services/itinerary.service"
-import { pdfFailure, pdfResponse, renderOrigin, renderPdf } from "@/lib/pdf/render-pdf"
+import { getCustomer } from "@/lib/services/customer.service"
+import { getItineraryDetail } from "@/lib/services/itinerary.service"
 
 export const dynamic = "force-dynamic"
 
 /**
- * Staff one-click PDF download, including drafts. The renderer carries the
- * caller's own session to the admin print page, so it sees exactly what the
- * caller is allowed to see.
+ * Staff one-click PDF download, including drafts, with the guest's name filled
+ * in when the quote is linked to a customer.
  */
 export async function GET(
-  request: NextRequest,
+  _request: Request,
   ctx: RouteContext<"/admin/packages/[id]/pdf/download">
 ) {
   try {
@@ -21,14 +19,17 @@ export async function GET(
   }
 
   const { id } = await ctx.params
-  const itinerary = await getItinerary(id)
-  if (!itinerary) return new Response("Itinerary not found", { status: 404 })
+  const detail = await getItineraryDetail(id)
+  if (!detail) return new Response("Itinerary not found", { status: 404 })
 
+  // Loaded on demand: react-pdf only needs to be in memory when someone downloads.
+  const { pdfFailure, pdfResponse, renderItineraryPdf } = await import("@/lib/pdf/itinerary-pdf")
   try {
-    const bytes = await renderPdf(`${renderOrigin(request)}/admin/packages/${id}/pdf`, {
-      cookies: request.cookies.getAll(),
-    })
-    return pdfResponse(bytes, `${itinerary.code} ${itinerary.title}`)
+    const customer = detail.itinerary.customerId
+      ? await getCustomer(detail.itinerary.customerId)
+      : null
+    const bytes = await renderItineraryPdf(detail, { guestName: customer?.name })
+    return pdfResponse(bytes, `${detail.itinerary.code} ${detail.itinerary.title}`)
   } catch (error) {
     return pdfFailure(error)
   }
