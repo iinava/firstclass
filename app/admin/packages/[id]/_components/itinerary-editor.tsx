@@ -5,7 +5,9 @@ import Link from "next/link"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   ArrowLeftIcon,
+  DownloadIcon,
   ExternalLinkIcon,
+  FileTextIcon,
   ImagePlusIcon,
   LinkIcon,
   PencilIcon,
@@ -199,6 +201,14 @@ export function ItineraryEditor({ itineraryId }: { itineraryId: string }) {
               <LinkIcon data-icon="inline-start" />
               Copy link
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              render={<a href={`/admin/packages/${itineraryId}/pdf/download`} download />}
+            >
+              <DownloadIcon data-icon="inline-start" />
+              Download PDF
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button size="sm" />}>Actions</DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -209,6 +219,10 @@ export function ItineraryEditor({ itineraryId }: { itineraryId: string }) {
                 >
                   <ExternalLinkIcon className="size-4" />
                   Preview shared page
+                </DropdownMenuItem>
+                <DropdownMenuItem render={<Link href={`/admin/packages/${itineraryId}/pdf`} />}>
+                  <FileTextIcon className="size-4" />
+                  Preview PDF
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={resetLinkMutation.isPending}

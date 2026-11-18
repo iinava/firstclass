@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import {
   CopyIcon,
+  DownloadIcon,
   ExternalLinkIcon,
   EyeIcon,
   LayoutGridIcon,
@@ -257,6 +258,12 @@ export function PackagesView() {
               >
                 <ExternalLinkIcon className="size-4" />
                 Preview shared page
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                render={<a href={`/admin/packages/${row.id}/pdf/download`} download />}
+              >
+                <DownloadIcon className="size-4" />
+                Download PDF
               </DropdownMenuItem>
 
               {row.kind === "package" && (
