@@ -303,6 +303,540 @@
   color: #4b4c4e;
 }
 
+/* ---------------------------------------------------------------------------
+ * Formatted staff text (components/shared/rich-text.tsx): pasted summaries
+ * with headings, lists and tables. Base look for screens; the itinerary PDF
+ * restyles it under `.itin-overview`.
+ * ------------------------------------------------------------------------ */
+.rich-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  line-height: 1.65;
+}
+
+.rich-text .rt-h1 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.rich-text .rt-h2 {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.rich-text ul,
+.rich-text ol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding-left: 1.25rem;
+}
+
+.rich-text ul {
+  list-style: disc;
+}
+
+.rich-text ol {
+  list-style: decimal;
+}
+
+.rich-text hr {
+  border: 0;
+  border-top: 1px solid currentColor;
+  opacity: 0.12;
+}
+
+.rich-text .rt-table {
+  overflow-x: auto;
+}
+
+.rich-text table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+
+.rich-text th {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 2px solid rgb(30 43 94 / 0.25);
+  text-align: left;
+  font-weight: 600;
+}
+
+.rich-text td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgb(0 0 0 / 0.06);
+}
+
+/* ---------------------------------------------------------------------------
+ * Customer itinerary (components/print/itinerary-document.tsx).
+ *
+ * Laid out to the client's own template ("itinerary.pdf"): letterhead header
+ * repeated on every sheet, navy serif cover band, beige guest box, a two-column
+ * day table with dashed borders, navy-headed tables, and a gold rule over a
+ * "FIRST CLASS TOURS & TRAVELS · page n" footer. Millimetres are measured off
+ * that PDF.
+ * ------------------------------------------------------------------------ */
+.itin {
+  --itin-navy: #1f2a5c;
+  --itin-ink-navy: #1a2340;
+  --itin-table-navy: #13213c;
+  --itin-gold: #c9a227;
+  --itin-beige: #f4f0ea;
+  --itin-beige-line: #e6dfd2;
+  --itin-beige-total: #ebe4d6;
+  --itin-grey: #6b7280;
+  --itin-text: #2b2f36;
+  --itin-dash: #9aa0aa;
+  --itin-side: 11mm;
+
+  position: relative;
+  width: 210mm;
+  min-height: 297mm;
+  margin-inline: auto;
+  background: #fff;
+  color: var(--itin-text);
+  font-family: var(--font-itin-sans), "DejaVu Sans", Verdana, sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.45;
+  page: itinerary;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.itin-sheet {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.itin-sheet > * > tr > td {
+  padding: 0;
+  vertical-align: top;
+}
+
+/* ---- letterhead header, repeated on every sheet by <thead> */
+.itin-head {
+  position: relative;
+  height: 40mm;
+}
+
+.itin-logo {
+  position: absolute;
+  top: 3mm;
+  left: 8mm;
+  width: 58mm;
+  height: auto;
+}
+
+.itin-contact {
+  position: absolute;
+  top: 24.5mm;
+  right: 8mm;
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  font-family: var(--font-poppins), "Poppins", sans-serif;
+  font-size: 10.5pt;
+  font-style: normal;
+  line-height: 1.12;
+  letter-spacing: 0.12em;
+  color: #2b2f36;
+}
+
+.itin-body {
+  padding: 0 var(--itin-side);
+}
+
+/* ---- navy cover band */
+.itin-banner {
+  min-height: 56mm;
+  padding: 7mm 12mm 9mm;
+  background: var(--itin-navy);
+  color: #fff;
+  font-family: var(--font-itin-serif), Georgia, serif;
+}
+
+.itin-banner-title {
+  text-align: center;
+  font-size: 27pt;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+
+.itin-banner-sub {
+  margin-top: 8mm;
+  font-size: 13pt;
+  text-transform: uppercase;
+}
+
+.itin-banner-tag {
+  margin-top: 6mm;
+  font-size: 13.5pt;
+  line-height: 1.35;
+  color: #eef0f6;
+}
+
+.itin-cover {
+  display: block;
+  width: 100%;
+  height: 62mm;
+  object-fit: cover;
+}
+
+/* ---- guest box */
+.itin-guest {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1mm;
+  margin-top: 3.5mm;
+}
+
+.itin-guest p {
+  min-height: 18mm;
+  display: flex;
+  align-items: center;
+  padding: 0 6mm;
+  background: var(--itin-beige);
+  border: 0.6pt solid var(--itin-beige-line);
+  font-size: 11.5pt;
+}
+
+/* ---- headings */
+.itin-heading {
+  margin: 8mm 2mm 3.5mm;
+  font-size: 12.5pt;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--itin-ink-navy);
+  break-after: avoid;
+}
+
+.itin-title {
+  margin: 4mm 2mm 4mm;
+  font-size: 20pt;
+  font-weight: 700;
+  color: var(--itin-ink-navy);
+}
+
+/* ---- day-by-day table */
+.itin-days {
+  display: flex;
+  flex-direction: column;
+  gap: 2mm;
+}
+
+.itin-day {
+  display: grid;
+  grid-template-columns: 52mm 1fr;
+  gap: 1.2mm;
+  break-inside: avoid;
+}
+
+.itin-day-label,
+.itin-day-body {
+  border: 0.75pt dashed var(--itin-dash);
+}
+
+.itin-day-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3mm 2mm;
+  background: var(--itin-beige);
+  text-align: center;
+  font-size: 11.5pt;
+  line-height: 1.3;
+  color: var(--itin-grey);
+}
+
+.itin-day-label strong {
+  font-size: 12.5pt;
+  font-weight: 700;
+  color: var(--itin-ink-navy);
+}
+
+.itin-day-body {
+  padding: 3mm 4mm 3mm 4.5mm;
+  font-size: 11pt;
+}
+
+.itin-day-body ul li {
+  position: relative;
+  padding-left: 3.2mm;
+}
+
+.itin-day-body ul li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+}
+
+.itin-day-photos {
+  display: flex;
+  gap: 1.5mm;
+  margin: 2.5mm 0 1mm;
+}
+
+.itin-day-photos img {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 32mm;
+  object-fit: cover;
+  border-radius: 1mm;
+}
+
+.itin-day-note {
+  margin-top: 1mm;
+  padding-left: 1mm;
+  color: var(--itin-grey);
+}
+
+/* ---- navy-headed tables (night plan, pricing) */
+.itin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5pt;
+}
+
+.itin-table th {
+  padding: 2.6mm 5mm;
+  background: var(--itin-table-navy);
+  color: #fff;
+  font-weight: 700;
+  text-align: left;
+}
+
+.itin-table td {
+  padding: 2mm 5mm;
+  background: var(--itin-beige);
+  border-bottom: 0.6pt solid #fbf9f6;
+}
+
+.itin-table .itin-num {
+  width: 26%;
+  text-align: center;
+}
+
+.itin-table .itin-amount {
+  width: 25%;
+}
+
+.itin-table .itin-total td {
+  padding-block: 2.8mm;
+  background: var(--itin-beige-total);
+  font-weight: 700;
+  color: var(--itin-ink-navy);
+}
+
+/* ---- gallery */
+.itin-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2mm;
+}
+
+.itin-gallery img {
+  width: 100%;
+  height: 44mm;
+  object-fit: cover;
+  border-radius: 1mm;
+  break-inside: avoid;
+}
+
+/* ---- pricing sheet */
+.itin-page-break {
+  break-before: page;
+  padding-top: 2mm;
+}
+
+.itin-topbar {
+  position: relative;
+  display: block;
+  height: 5mm;
+  margin: 0 calc(-1 * var(--itin-side));
+  background: var(--itin-table-navy);
+}
+
+.itin-topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1mm;
+  width: 42mm;
+  height: 1.2mm;
+  background: var(--itin-gold);
+}
+
+.itin-keep {
+  break-inside: avoid;
+}
+
+.itin-small {
+  margin: 2mm 2mm 0;
+  font-size: 9pt;
+  color: var(--itin-grey);
+}
+
+.itin-checks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6mm 8mm;
+  padding: 4mm 6mm;
+  background: var(--itin-beige);
+  border: 0.6pt solid var(--itin-beige-line);
+  font-size: 10pt;
+}
+
+.itin-checks li {
+  display: flex;
+  gap: 1.5mm;
+}
+
+.itin-bank {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--itin-beige);
+  border: 0.6pt solid #d9d2c5;
+  font-size: 10.5pt;
+}
+
+.itin-bank p {
+  min-height: 15mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2.5mm 6mm;
+  border-bottom: 0.6pt solid #e2dbcf;
+}
+
+.itin-bank p:nth-child(odd) {
+  border-right: 0.6pt solid #e2dbcf;
+}
+
+.itin-strip {
+  margin: 4mm 6mm 0;
+  font-size: 12pt;
+  color: var(--itin-ink-navy);
+}
+
+.itin-strip-soft {
+  margin-top: 0.5mm;
+  color: var(--itin-grey);
+}
+
+.itin-terms {
+  padding: 0 2mm;
+  font-size: 8.5pt;
+  line-height: 1.5;
+  gap: 1mm;
+  color: #4b5563;
+}
+
+.itin-ref {
+  margin: 6mm 2mm 0;
+  font-size: 8pt;
+  color: #9ca3af;
+}
+
+/* ---- overview (a pasted summary, formatted) */
+.itin-overview {
+  gap: 2.2mm;
+  padding: 0 2mm;
+  font-size: 10pt;
+  line-height: 1.5;
+  color: var(--itin-text);
+}
+
+.itin-overview .rt-h1 {
+  font-size: 11.5pt;
+  font-weight: 700;
+  color: var(--itin-ink-navy);
+}
+
+.itin-overview .rt-h2 {
+  margin-top: 1mm;
+  font-size: 9.5pt;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--itin-ink-navy);
+  opacity: 1;
+}
+
+.itin-overview th {
+  padding: 2mm 4mm;
+  border: 0;
+  background: var(--itin-table-navy);
+  color: #fff;
+}
+
+.itin-overview td {
+  padding: 1.6mm 4mm;
+  border-bottom: 0.6pt solid #fbf9f6;
+  background: var(--itin-beige);
+}
+
+.itin-overview tr {
+  break-inside: avoid;
+}
+
+.itin-overview hr {
+  border-top: 0.75pt solid var(--itin-gold);
+  opacity: 1;
+}
+
+/* ---- page footer: gold rule + name + page number */
+.itin-foot-space {
+  height: 4mm;
+}
+
+.itin-foot-rule {
+  display: none;
+}
+
+.itin-screen-foot {
+  margin: 8mm 18mm 0;
+  padding: 2.5mm 0 8mm;
+  border-top: 0.75pt solid var(--itin-gold);
+  font-size: 7pt;
+  color: #555;
+}
+
+/* The itinerary keeps a bottom margin for its footer: the words and page
+   number are margin boxes, and the gold rule is fixed to the bottom of the
+   content area, so it sits right on top of them on every sheet. */
+@page itinerary {
+  size: A4;
+  margin: 0 0 15mm;
+
+  @bottom-left {
+    content: "FIRST CLASS TOURS & TRAVELS";
+    vertical-align: top;
+    padding: 3mm 0 0 18mm;
+    font-family: "DejaVu Sans", Verdana, sans-serif;
+    font-size: 7pt;
+    color: #555;
+  }
+
+  @bottom-right {
+    content: counter(page);
+    vertical-align: top;
+    padding: 3mm 18mm 0 0;
+    text-align: right;
+    font-family: "DejaVu Sans", Verdana, sans-serif;
+    font-size: 7pt;
+    color: #555;
+  }
+}
+
 /**
  * Printing. Only letterhead documents are ever printed, so the rule is blunt:
  * strip the app chrome and force a light page regardless of the user's theme.
@@ -322,8 +856,9 @@
   }
 
   html {
-    /* Without this the dark app theme prints the page black behind the sheet. */
-    color-scheme: light;
+    /* Without this the dark app theme prints the page black behind the sheet.
+       !important because next-themes sets color-scheme as an inline style. */
+    color-scheme: light !important;
   }
 
   html,
@@ -361,5 +896,42 @@
   .letterhead-wash,
   .letterhead-foot {
     position: fixed;
+  }
+
+  .itin {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+  }
+
+  /* The app shell makes <html> full-height and <body> a min-height flex box;
+     on paper that spills one blank sheet after the document. */
+  html:has(.itin),
+  html:has(.itin) body {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  /* App-level siblings of the page (toaster, route announcer, dev overlay)
+     otherwise spill onto an extra, footer-less sheet after the document. */
+  body > section[aria-label^="Notifications"],
+  next-route-announcer,
+  nextjs-portal {
+    display: none !important;
+  }
+
+
+  .itin-foot-rule {
+    position: fixed;
+    display: block;
+    left: 18mm;
+    right: 18mm;
+    bottom: 0;
+    height: 0.75pt;
+    background: var(--itin-gold);
+  }
+
+  .itin-screen-foot {
+    display: none;
   }
 }

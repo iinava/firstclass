@@ -153,6 +153,8 @@ export async function getItinerary(id: string): Promise<Itinerary | null> {
 
 export interface ItineraryDayWithHotel extends ItineraryDay {
   hotelName: string | null
+  /** The hotel supplier's city — where the guest sleeps that night. */
+  hotelCity: string | null
 }
 
 /** Days joined with the hotel supplier's name, for anywhere a day is displayed. */
@@ -172,6 +174,7 @@ async function listDaysWithHotel(itineraryId: string): Promise<ItineraryDayWithH
       createdAt: itineraryDays.createdAt,
       updatedAt: itineraryDays.updatedAt,
       hotelName: suppliers.name,
+      hotelCity: suppliers.city,
     })
     .from(itineraryDays)
     .leftJoin(suppliers, eq(suppliers.id, itineraryDays.hotelSupplierId))
@@ -251,6 +254,37 @@ export async function getItineraryByShareToken(token: string) {
   ])
 
   return { itinerary, days, images }
+}
+
+/** Why a share link did not resolve, for a friendlier page than a bare 404. */
+export type UnavailableShareReason = "draft" | "disabled" | "expired" | "closed"
+
+/**
+ * Explains a share token that `getItineraryByShareToken` refused. Returns null
+ * when the token matches nothing at all (a mistyped or made-up link). Reads
+ * only the gating columns, so nothing about the itinerary itself leaks to a
+ * visitor who isn't allowed to see it.
+ */
+export async function getUnavailableShareReason(
+  token: string
+): Promise<UnavailableShareReason | null> {
+  const [row] = await db
+    .select({
+      status: itineraries.status,
+      isShareEnabled: itineraries.isShareEnabled,
+      expiresAt: itineraries.shareTokenExpiresAt,
+      deletedAt: itineraries.deletedAt,
+    })
+    .from(itineraries)
+    .where(eq(itineraries.shareToken, token))
+    .limit(1)
+
+  if (!row) return null
+  if (row.deletedAt) return "closed"
+  if (row.status === "draft") return "draft"
+  if (!row.isShareEnabled) return "disabled"
+  if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) return "expired"
+  return "closed"
 }
 
 export interface CatalogCard {

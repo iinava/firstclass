@@ -27,6 +27,15 @@ export const COMPANY = {
   phoneHref: "+918891922766",
   email: "firstclasspvtltd@gmail.com",
   website: "www.firstclasstoursandtravels.com",
+  /** Both numbers as the itinerary's contact strip prints them. */
+  contactPhones: ["+91 81119 98899", "+91 88919 22766"],
+  /** Payment details printed on itineraries, from the client's own template. */
+  bank: {
+    accountName: "FIRST CLASS TOURS AND TRAVELS",
+    accountNumber: "8111998899",
+    ifsc: "KKBK0009328",
+    bankName: "KOTAK MAHINDRA BANK",
+  },
 } as const
 
 /** The footer address, on one line, as the stationery sets it. */
