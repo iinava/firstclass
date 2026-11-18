@@ -276,6 +276,47 @@ export const cloneItinerary = defineAction({
   },
 })
 
+/**
+ * Saves a copy of a custom quote as a new reusable package. The quote itself is
+ * left untouched — it is the customer's record (sent/viewed/accepted history,
+ * share link, versions, linked trips), so it is copied rather than converted.
+ */
+export const saveQuoteAsPackage = defineAction({
+  name: "saveQuoteAsPackage",
+  permission: "itinerary:create",
+  schema: z.object({ sourceId: uuidSchema }),
+  handler: async ({ sourceId }, { session }) => {
+    const source = await service.getItinerary(sourceId)
+    if (!source) throw new ActionFailure("Quote not found")
+    if (source.kind !== "custom") throw new ActionFailure("Only quotes can be saved as a package")
+
+    const code = await nextPackageCode()
+    const pkg = await service.cloneItinerary(sourceId, {
+      code,
+      kind: "package",
+      shareToken: generateShareToken(),
+      shareTokenExpiresAt: shareTokenExpiry(),
+      leadId: null,
+      customerId: null,
+      sourcePackageId: null,
+      validUntil: null,
+      createdBy: session.userId,
+    })
+    if (!pkg) throw new ActionFailure("Quote not found")
+
+    await recordAudit({
+      entity: "itineraries",
+      entityId: pkg.id,
+      action: "create",
+      summary: `Created package ${code} from quote ${source.code}`,
+      session,
+    })
+
+    revalidatePath("/admin/packages")
+    return pkg
+  },
+})
+
 // ---------------------------------------------------------------------- days
 
 export const saveDay = defineAction({

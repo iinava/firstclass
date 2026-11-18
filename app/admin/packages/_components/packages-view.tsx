@@ -10,6 +10,7 @@ import {
   LayoutGridIcon,
   LinkIcon,
   MoreHorizontalIcon,
+  PackageIcon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
@@ -49,6 +50,7 @@ import {
   cloneItinerary,
   deleteItinerary,
   fetchItineraries,
+  saveQuoteAsPackage,
   updateItineraryStatus,
 } from "../actions"
 import { ItineraryFormDialog } from "./itinerary-form-dialog"
@@ -111,6 +113,12 @@ export function PackagesView() {
   const cloneMutation = useActionMutation({
     action: cloneItinerary,
     successMessage: "Quote created from package",
+    invalidate: [qk.itineraries.all],
+  })
+
+  const saveAsPackageMutation = useActionMutation({
+    action: saveQuoteAsPackage,
+    successMessage: "Package created from quote — review the price, then publish",
     invalidate: [qk.itineraries.all],
   })
 
@@ -269,6 +277,16 @@ export function PackagesView() {
                 </DropdownMenuItem>
               )}
 
+              {row.kind === "custom" && (
+                <DropdownMenuItem
+                  disabled={saveAsPackageMutation.isPending}
+                  onClick={() => saveAsPackageMutation.mutate({ sourceId: row.id })}
+                >
+                  <PackageIcon className="size-4" />
+                  Save as package
+                </DropdownMenuItem>
+              )}
+
               <DropdownMenuSeparator />
               {/* The label is a group part — outside DropdownMenuGroup Base UI
                   throws and the whole page falls into the error boundary. */}
@@ -301,7 +319,7 @@ export function PackagesView() {
         ),
       },
     ],
-    [statusMutation, cloneMutation]
+    [statusMutation, cloneMutation, saveAsPackageMutation]
   )
 
   return (

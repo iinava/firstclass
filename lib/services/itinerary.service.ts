@@ -534,7 +534,11 @@ export async function countCoverImageUses(url: string): Promise<number> {
   return row?.value ?? 0
 }
 
-/** Copies a package (with its days) into a new itinerary for a customer. */
+/**
+ * Copies an itinerary (with its days) into a new draft. Defaults to a custom
+ * quote (package → quote for a customer); pass `kind: "package"` and null
+ * linkage in `overrides` to turn a quote into a new reusable package.
+ */
 export async function cloneItinerary(
   sourceId: string,
   overrides: Partial<typeof itineraries.$inferInsert>
