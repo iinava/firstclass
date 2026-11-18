@@ -1,6 +1,8 @@
 import "server-only"
 
 import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
 import puppeteer, { type Browser } from "puppeteer-core"
 
 /**
@@ -8,11 +10,10 @@ import puppeteer, { type Browser } from "puppeteer-core"
  * pages and saves it with the page's own @page rules, so the downloaded file is
  * exactly what the HTML document looks like when printed.
  *
- * Uses the machine's Chrome rather than bundling one. On an Ubuntu VPS:
- *   wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
- *   sudo apt install -y ./google-chrome-stable_current_amd64.deb
- * (not `apt install chromium` — on Ubuntu that's only a snap stub). If Chrome
- * lives somewhere unusual, point PUPPETEER_EXECUTABLE_PATH at it.
+ * Uses the machine's Chrome when there is one (dev machines, or a server with
+ * google-chrome-stable installed / PUPPETEER_EXECUTABLE_PATH set). Otherwise,
+ * on Linux, it falls back to the Chromium shipped inside @sparticuz/chromium,
+ * so a deploy works without installing anything on the box or container.
  */
 
 // Google Chrome first: on Ubuntu, `apt install chromium` only installs a stub
@@ -47,16 +48,66 @@ function isSnapStub(path: string): boolean {
   }
 }
 
-function findChrome(): string {
-  const path = CANDIDATES.find(
+function findChrome(): string | undefined {
+  return CANDIDATES.find(
     (candidate) => candidate && fs.existsSync(candidate) && !isSnapStub(candidate)
   )
-  if (!path) {
-    throw new PdfUnavailableError(
-      "No Chrome/Chromium found for PDF export. Install google-chrome-stable or set PUPPETEER_EXECUTABLE_PATH."
-    )
+}
+
+function launchSystemChrome(executablePath: string): Promise<Browser> {
+  return puppeteer.launch({
+    executablePath,
+    headless: true,
+    args: ["--no-sandbox", "--disable-dev-shm-usage", "--font-render-hinting=none"],
+  })
+}
+
+/**
+ * The Chromium bundled in @sparticuz/chromium (unpacked to /tmp on first use).
+ * Slim containers may lack Chrome's shared libraries (libnss3 and friends); the
+ * package ships those too, so if the first launch fails we unpack them and
+ * retry with them on LD_LIBRARY_PATH.
+ */
+async function launchBundledChromium(): Promise<Browser> {
+  const { default: Chromium, inflate } = await import("@sparticuz/chromium")
+  const executablePath = await Chromium.executablePath()
+  const env: Record<string, string | undefined> = {
+    ...process.env,
+    FONTCONFIG_PATH: process.env.FONTCONFIG_PATH ?? path.join(os.tmpdir(), "fonts"),
+    HOME: process.env.HOME ?? os.tmpdir(),
   }
-  return path
+  const options = {
+    executablePath,
+    headless: "shell" as const,
+    // --single-process is a Lambda workaround; it crashes as soon as we open a
+    // page in a fresh browser context, which every render does.
+    args: [...Chromium.args.filter((arg) => arg !== "--single-process"), "--disable-dev-shm-usage"],
+    env,
+  }
+
+  try {
+    return await puppeteer.launch(options)
+  } catch (firstError) {
+    const libDir = path.join(os.tmpdir(), "al2023", "lib")
+    if (!fs.existsSync(libDir)) {
+      const pack = path.join(process.cwd(), "node_modules", "@sparticuz", "chromium", "bin", "al2023.tar.br")
+      if (!fs.existsSync(pack)) throw firstError
+      await inflate(pack)
+    }
+    const libraryPath = [libDir, process.env.LD_LIBRARY_PATH].filter(Boolean).join(":")
+    return puppeteer.launch({ ...options, env: { ...env, LD_LIBRARY_PATH: libraryPath } })
+  }
+}
+
+function launchBrowser(): Promise<Browser> {
+  const systemChrome = findChrome()
+  if (systemChrome) return launchSystemChrome(systemChrome)
+  if (process.platform === "linux" && process.arch === "x64") return launchBundledChromium()
+  return Promise.reject(
+    new PdfUnavailableError(
+      "No Chrome/Chromium found for PDF export. Install Google Chrome or set PUPPETEER_EXECUTABLE_PATH."
+    )
+  )
 }
 
 // One browser for the whole process (kept on globalThis so dev reloads don't
@@ -69,11 +120,7 @@ async function getBrowser(): Promise<Browser> {
     const browser = await existing.catch(() => null)
     if (browser?.connected) return browser
   }
-  const launching = puppeteer.launch({
-    executablePath: findChrome(),
-    headless: true,
-    args: ["--no-sandbox", "--disable-dev-shm-usage", "--font-render-hinting=none"],
-  })
+  const launching = launchBrowser()
   holder.__pdfBrowser = launching
   const browser = await launching.catch((error) => {
     holder.__pdfBrowser = undefined
