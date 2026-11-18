@@ -8,18 +8,23 @@ import puppeteer, { type Browser } from "puppeteer-core"
  * pages and saves it with the page's own @page rules, so the downloaded file is
  * exactly what the HTML document looks like when printed.
  *
- * Uses the machine's Chrome/Chromium rather than bundling one. On the VPS:
- *   sudo apt install chromium   (or google-chrome-stable)
- * and, if it lives somewhere unusual, point PUPPETEER_EXECUTABLE_PATH at it.
+ * Uses the machine's Chrome rather than bundling one. On an Ubuntu VPS:
+ *   wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+ *   sudo apt install -y ./google-chrome-stable_current_amd64.deb
+ * (not `apt install chromium` — on Ubuntu that's only a snap stub). If Chrome
+ * lives somewhere unusual, point PUPPETEER_EXECUTABLE_PATH at it.
  */
 
+// Google Chrome first: on Ubuntu, `apt install chromium` only installs a stub
+// that points at the snap, and snap Chromium is awkward to drive headless.
 const CANDIDATES = [
   process.env.PUPPETEER_EXECUTABLE_PATH,
   process.env.CHROME_PATH,
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
   "/usr/bin/google-chrome-stable",
   "/usr/bin/google-chrome",
+  "/opt/google/chrome/chrome",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
   "/snap/bin/chromium",
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
   "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
@@ -28,11 +33,27 @@ const CANDIDATES = [
 
 export class PdfUnavailableError extends Error {}
 
+/**
+ * Ubuntu ships /usr/bin/chromium(-browser) as a tiny shell script that only
+ * says "requires the chromium snap to be installed". It exists on disk, so a
+ * plain existsSync picks it and the launch then fails. Skip those stubs.
+ */
+function isSnapStub(path: string): boolean {
+  try {
+    if (fs.statSync(path).size > 64 * 1024) return false
+    return /snap install chromium|requires the chromium snap/i.test(fs.readFileSync(path, "utf8"))
+  } catch {
+    return false
+  }
+}
+
 function findChrome(): string {
-  const path = CANDIDATES.find((candidate) => candidate && fs.existsSync(candidate))
+  const path = CANDIDATES.find(
+    (candidate) => candidate && fs.existsSync(candidate) && !isSnapStub(candidate)
+  )
   if (!path) {
     throw new PdfUnavailableError(
-      "No Chrome/Chromium found for PDF export. Install chromium or set PUPPETEER_EXECUTABLE_PATH."
+      "No Chrome/Chromium found for PDF export. Install google-chrome-stable or set PUPPETEER_EXECUTABLE_PATH."
     )
   }
   return path
