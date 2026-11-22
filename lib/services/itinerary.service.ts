@@ -1,6 +1,7 @@
 import "server-only"
 import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm"
 import { db } from "@/db/drizzle"
+import { bookings } from "@/db/schemas/booking.schema"
 import { customers } from "@/db/schemas/customer.schema"
 import {
   itineraries,
@@ -9,6 +10,7 @@ import {
   type Itinerary,
   type ItineraryDay,
 } from "@/db/schemas/itinerary.schema"
+import { leads } from "@/db/schemas/lead.schema"
 import { suppliers } from "@/db/schemas/supplier.schema"
 import {
   PICKER_LIMIT,
@@ -16,6 +18,7 @@ import {
   type PickerQuery,
 } from "@/validations/common.validation"
 import type { ItineraryListParams } from "@/validations/itinerary.validation"
+import type { PdfGuest } from "@/validations/pdf.validation"
 
 const alive = isNull(itineraries.deletedAt)
 
@@ -617,4 +620,70 @@ export async function cloneItinerary(
   }
 
   return clone
+}
+
+/**
+ * What the PDF download dialog starts filled with, so staff only check and
+ * adjust. Best source first: a trip booked from this custom quote has the real dates
+ * and head count; otherwise the linked lead's rough travel date and pax; the
+ * name and phone come from whichever customer is attached.
+ */
+export async function getPdfGuestDefaults(itineraryId: string): Promise<PdfGuest> {
+  const itinerary = await getItinerary(itineraryId)
+  if (!itinerary) return {}
+
+  // A package is booked by many customers, so only a custom quote's trip
+  // says who this PDF is for.
+  const [[booking], [lead]] = await Promise.all([
+    itinerary.kind !== "custom"
+      ? Promise.resolve([])
+      : db
+      .select({
+        customerId: bookings.customerId,
+        startDate: bookings.startDate,
+        endDate: bookings.endDate,
+        adults: bookings.adults,
+        children: bookings.children,
+      })
+      .from(bookings)
+      .where(
+        and(
+          eq(bookings.itineraryId, itineraryId),
+          isNull(bookings.deletedAt),
+          sql`${bookings.status} <> 'cancelled'`
+        )
+      )
+      .orderBy(desc(bookings.createdAt))
+      .limit(1),
+    itinerary.leadId
+      ? db
+          .select({
+            customerId: leads.customerId,
+            travelDate: leads.travelDate,
+            adults: leads.adults,
+            children: leads.children,
+          })
+          .from(leads)
+          .where(eq(leads.id, itinerary.leadId))
+          .limit(1)
+      : Promise.resolve([]),
+  ])
+
+  const customerId = booking?.customerId ?? itinerary.customerId ?? lead?.customerId ?? null
+  const [customer] = customerId
+    ? await db
+        .select({ name: customers.name, phone: customers.phone })
+        .from(customers)
+        .where(eq(customers.id, customerId))
+        .limit(1)
+    : []
+
+  return {
+    name: customer?.name ?? null,
+    phone: customer?.phone ?? null,
+    arrival: booking?.startDate ?? lead?.travelDate ?? null,
+    departure: booking?.endDate ?? null,
+    adults: booking?.adults ?? lead?.adults ?? null,
+    children: booking?.children ?? lead?.children ?? null,
+  }
 }

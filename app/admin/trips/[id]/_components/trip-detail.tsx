@@ -10,6 +10,7 @@ import {
   BedIcon,
   BusIcon,
   CalendarIcon,
+  DownloadIcon,
   GaugeIcon,
   IndianRupeeIcon,
   MoreHorizontalIcon,
@@ -332,6 +333,15 @@ export function TripDetail({ tripId }: { tripId: string }) {
               >
                 <PrinterIcon data-icon="inline-start" />
                 Print invoice
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                render={<a href={`/admin/trips/${tripId}/itinerary/download`} download />}
+              >
+                <DownloadIcon data-icon="inline-start" />
+                Itinerary PDF
               </Button>
 
               <DropdownMenu>

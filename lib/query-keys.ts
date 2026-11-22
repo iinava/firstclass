@@ -35,6 +35,7 @@ export const qk = {
     all: ["itineraries"] as const,
     list: (params: ListParams = {}) => ["itineraries", "list", params] as const,
     detail: (id: string) => ["itineraries", "detail", id] as const,
+    pdfGuest: (id: string) => ["itineraries", "pdf-guest", id] as const,
     options: () => ["itineraries", "options"] as const,
   },
   bookings: {
