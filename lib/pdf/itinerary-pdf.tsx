@@ -15,11 +15,12 @@ import {
   View,
   renderToBuffer,
 } from "@react-pdf/renderer"
+import { addDays, format } from "date-fns"
 import type { ComponentProps, ReactNode } from "react"
 import type { ItineraryDocumentData } from "@/components/print/itinerary-document"
 import { parseRichText } from "@/components/shared/rich-text"
 import { COMPANY } from "@/lib/company"
-import { formatDate } from "@/lib/format"
+import { formatDate, formatPax, parseDate } from "@/lib/format"
 import { formatMoneyShort } from "@/lib/money"
 import {
   nightPlan as buildNightPlan,
@@ -31,7 +32,16 @@ import {
   toBullets,
 } from "@/lib/itinerary-format"
 import { storage } from "@/lib/storage"
+import type { PdfGuest } from "@/validations/pdf.validation"
 import { LOGO_PATHS, LOGO_VIEWBOX } from "./logo-paths"
+
+export type { PdfGuest }
+
+/** A traveller printed in the guest list (trip PDFs only). */
+export interface PdfPassenger {
+  name: string
+  age: number | null
+}
 
 /*
  * The itinerary PDF, drawn directly with @react-pdf/renderer: pure JavaScript,
@@ -184,6 +194,7 @@ const s = StyleSheet.create({
     color: GREY,
   },
   dayNumber: { fontSize: 12.5, fontWeight: 700, color: INK_NAVY },
+  dayDate: { fontSize: 9.5, color: INK_NAVY, marginBottom: "0.5mm" },
   dayBody: {
     flex: 1,
     paddingTop: "3mm",
@@ -501,16 +512,31 @@ const chunk = <T,>(items: T[], size: number): T[][] =>
 
 function ItineraryPdf({
   data,
-  guestName,
+  guest,
+  passengers,
   images,
 }: {
   data: ItineraryDocumentData
-  guestName?: string | null
+  guest: PdfGuest
+  passengers: PdfPassenger[]
   images: Map<string, PdfImage>
 }) {
   const { itinerary, days } = data
   const nights = itinerary.durationNights
   const daysCount = itinerary.durationDays
+
+  // Once the arrival date is known every day gets its calendar date, and the
+  // departure falls out of the night count unless staff typed one.
+  const arrival = parseDate(guest.arrival)
+  const departure = parseDate(guest.departure) ?? (arrival ? addDays(arrival, nights) : null)
+  const dayDate = (dayNumber: number) =>
+    arrival ? format(addDays(arrival, dayNumber - 1), "EEE, d MMM yyyy") : null
+  const pax =
+    guest.adults || guest.children || guest.infants
+      ? formatPax(guest.adults ?? 0, guest.children ?? 0, guest.infants ?? 0)
+          .replace(/^0 adults, /, "")
+          .toUpperCase()
+      : null
 
   const dayPhotos = new Map<string, string[]>()
   for (const image of data.images) {
@@ -587,7 +613,7 @@ function ItineraryPdf({
         <View style={{ marginTop: "2.5mm" }} wrap={false}>
           <View style={s.guestRow}>
             <View style={s.guestCell}>
-              <Text>GUEST NAME : {guestName ?? ""}</Text>
+              <Text>GUEST NAME : {guest.name ?? ""}</Text>
             </View>
             <View style={s.guestCell}>
               <Text>
@@ -597,12 +623,23 @@ function ItineraryPdf({
           </View>
           <View style={s.guestRow}>
             <View style={s.guestCell}>
-              <Text>ARRIVAL DATE :</Text>
+              <Text>ARRIVAL DATE : {arrival ? formatDate(arrival) : ""}</Text>
             </View>
             <View style={s.guestCell}>
-              <Text>DEPARTURE DATE :</Text>
+              <Text>DEPARTURE DATE : {departure ? formatDate(departure) : ""}</Text>
             </View>
           </View>
+          {/* Only printed when filled, so the blank copy keeps the template's two rows. */}
+          {(guest.phone || pax) && (
+            <View style={s.guestRow}>
+              <View style={s.guestCell}>
+                <Text>CONTACT : {guest.phone ?? ""}</Text>
+              </View>
+              <View style={s.guestCell}>
+                <Text>GUESTS : {pax ?? ""}</Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {overview && (
@@ -634,6 +671,7 @@ function ItineraryPdf({
                 <View key={day.id} style={s.day} wrap={!keepTogether}>
                   <View style={s.dayLabel}>
                     <Text style={s.dayNumber}>DAY {pad(day.dayNumber)}</Text>
+                    {dayDate(day.dayNumber) && <Text style={s.dayDate}>{dayDate(day.dayNumber)}</Text>}
                     {titleLines(day.title).map((line, index) => (
                       <Text key={index}>{line}</Text>
                     ))}
@@ -679,6 +717,29 @@ function ItineraryPdf({
                   {pad(plannedNights)}
                 </Text>
               </View>
+            </View>
+          </View>
+        )}
+
+        {/* --------------------------------------------- guest list */}
+        {passengers.length > 0 && (
+          <View wrap={false}>
+            <Heading>GUEST LIST</Heading>
+            <View style={s.table}>
+              <View style={s.tr}>
+                <Text style={[s.th, { width: "14%", textAlign: "center" }]}>NO.</Text>
+                <Text style={[s.th, { flex: 1 }]}>NAME</Text>
+                <Text style={[s.th, { width: "20%", textAlign: "center" }]}>AGE</Text>
+              </View>
+              {passengers.map((person, index) => (
+                <View key={index} style={s.tr}>
+                  <Text style={[s.td, { width: "14%", textAlign: "center" }]}>{pad(index + 1)}</Text>
+                  <Text style={[s.td, { flex: 1 }]}>{person.name.toUpperCase()}</Text>
+                  <Text style={[s.td, { width: "20%", textAlign: "center" }]}>
+                    {person.age ?? ""}
+                  </Text>
+                </View>
+              ))}
             </View>
           </View>
         )}
@@ -817,18 +878,29 @@ function CheckList({ items, cross = false }: { items: string[]; cross?: boolean 
   )
 }
 
-/** Renders the itinerary to PDF bytes. */
+/**
+ * Renders the itinerary to PDF bytes. With no `guest` the guest box prints
+ * empty, ready to be filled in by hand.
+ */
 export async function renderItineraryPdf(
   data: ItineraryDocumentData,
-  { guestName }: { guestName?: string | null } = {}
+  { guest = {}, passengers = [] }: { guest?: PdfGuest | null; passengers?: PdfPassenger[] } = {}
 ): Promise<Buffer> {
   const urls = [
     ...(data.itinerary.coverImageUrl ? [data.itinerary.coverImageUrl] : []),
     ...data.images.map((image) => image.url),
   ]
   const images = await loadImages(urls)
+  const safeGuest: PdfGuest = {
+    ...guest,
+    name: clean(guest?.name ?? null),
+    phone: clean(guest?.phone ?? null),
+  }
+  const safePassengers = passengers
+    .map((person) => ({ ...person, name: clean(person.name) }))
+    .filter((person) => person.name)
   return renderToBuffer(
-    <ItineraryPdf data={cleanData(data)} guestName={guestName ? clean(guestName) : null} images={images} />
+    <ItineraryPdf data={cleanData(data)} guest={safeGuest} passengers={safePassengers} images={images} />
   )
 }
 

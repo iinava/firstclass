@@ -59,6 +59,7 @@ import {
   updateItineraryStatus,
 } from "../../actions"
 import { DayEditorDialog } from "./day-editor-dialog"
+import { PdfDownloadDialog } from "./pdf-download-dialog"
 
 export function ItineraryEditor({ itineraryId }: { itineraryId: string }) {
   const { data } = useQuery({
@@ -70,6 +71,7 @@ export function ItineraryEditor({ itineraryId }: { itineraryId: string }) {
   const [editingDay, setEditingDay] = React.useState<ItineraryDay | null>(null)
   const [deletingDay, setDeletingDay] = React.useState<ItineraryDay | null>(null)
   const [isUploading, setIsUploading] = React.useState(false)
+  const [pdfOpen, setPdfOpen] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
 
@@ -201,11 +203,7 @@ export function ItineraryEditor({ itineraryId }: { itineraryId: string }) {
               <LinkIcon data-icon="inline-start" />
               Copy link
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              render={<a href={`/admin/packages/${itineraryId}/pdf/download`} download />}
-            >
+            <Button variant="outline" size="sm" onClick={() => setPdfOpen(true)}>
               <DownloadIcon data-icon="inline-start" />
               Download PDF
             </Button>
@@ -433,6 +431,13 @@ export function ItineraryEditor({ itineraryId }: { itineraryId: string }) {
         itineraryId={itineraryId}
         day={editingDay}
         nextDayNumber={days.length + 1}
+      />
+
+      <PdfDownloadDialog
+        open={pdfOpen}
+        onOpenChange={setPdfOpen}
+        itineraryId={itineraryId}
+        nights={itinerary.durationNights}
       />
 
       <ConfirmDialog

@@ -1,5 +1,6 @@
 import "server-only"
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm"
+import { differenceInCalendarDays, parseISO } from "date-fns"
 import { db, type Tx } from "@/db/drizzle"
 import {
   bookingDays,
@@ -15,13 +16,16 @@ import { suppliers } from "@/db/schemas/supplier.schema"
 import { tripCostItems, type TripCostItem } from "@/db/schemas/trip-cost.schema"
 import { users } from "@/db/schemas/user.schema"
 import { vehicles } from "@/db/schemas/vehicle.schema"
+import type { ItineraryDocumentData } from "@/components/print/itinerary-document"
 import { marginPercent, profit } from "@/lib/money"
+import { getItineraryDetail } from "@/lib/services/itinerary.service"
 import {
   PICKER_LIMIT,
   type PaginatedResult,
   type PickerQuery,
 } from "@/validations/common.validation"
 import type { BookingListParams } from "@/validations/booking.validation"
+import type { PdfGuest } from "@/validations/pdf.validation"
 
 const alive = isNull(bookings.deletedAt)
 
@@ -434,6 +438,8 @@ export async function deletePax(id: string) {
 
 export interface BookingDayWithHotel extends BookingDay {
   hotelName: string | null
+  /** The hotel supplier's city — where the guest sleeps that night. */
+  hotelCity: string | null
 }
 
 export async function listTripDays(bookingId: string): Promise<BookingDayWithHotel[]> {
@@ -452,6 +458,7 @@ export async function listTripDays(bookingId: string): Promise<BookingDayWithHot
       createdAt: bookingDays.createdAt,
       updatedAt: bookingDays.updatedAt,
       hotelName: suppliers.name,
+      hotelCity: suppliers.city,
     })
     .from(bookingDays)
     .leftJoin(suppliers, eq(suppliers.id, bookingDays.hotelSupplierId))
@@ -524,4 +531,106 @@ export async function seedTripDaysFromItinerary(
       dinner: day.dinner,
     }))
   )
+}
+
+// ------------------------------------------------------------- itinerary PDF
+
+/**
+ * The trip laid out as the customer's itinerary PDF, with the guest box
+ * filled from the booking itself: customer, real dates, head count and the
+ * passenger list. Days are the trip's own (the hotels actually booked); the
+ * overview, photos, inclusions and terms come from the package or quote it was
+ * booked from, when there is one. Pricing is the trip's grand total.
+ */
+export async function getTripItineraryDocument(bookingId: string): Promise<{
+  booking: Booking
+  data: ItineraryDocumentData
+  guest: PdfGuest
+  passengers: { name: string; age: number | null }[]
+} | null> {
+  const booking = await getBookingRaw(bookingId)
+  if (!booking) return null
+
+  const [[customer], tripDays, pax, source] = await Promise.all([
+    db
+      .select({ name: customers.name, phone: customers.phone })
+      .from(customers)
+      .where(eq(customers.id, booking.customerId))
+      .limit(1),
+    listTripDays(bookingId),
+    listPax(bookingId),
+    booking.itineraryId ? getItineraryDetail(booking.itineraryId) : Promise.resolve(null),
+  ])
+
+  const nights = Math.max(
+    0,
+    differenceInCalendarDays(parseISO(booking.endDate), parseISO(booking.startDate))
+  )
+
+  // Trip days were copied from the source when the trip was created, so their
+  // ids differ: day photos are matched across by day number instead.
+  const days = tripDays.length ? tripDays : (source?.days ?? [])
+  const tripDayByNumber = new Map(days.map((day) => [day.dayNumber, day.id]))
+  const sourceDayNumber = new Map(source?.days.map((day) => [day.id, day.dayNumber]) ?? [])
+  const images = (source?.images ?? []).flatMap((image) => {
+    if (!image.dayId) return [image]
+    const dayId = tripDayByNumber.get(sourceDayNumber.get(image.dayId) ?? -1)
+    return dayId ? [{ ...image, dayId }] : []
+  })
+
+  const data: ItineraryDocumentData = {
+    itinerary: {
+      code: booking.code,
+      title: booking.title,
+      destination: booking.destination ?? source?.itinerary.destination ?? null,
+      durationDays: nights + 1,
+      durationNights: nights,
+      summary: source?.itinerary.summary ?? null,
+      coverImageUrl: source?.itinerary.coverImageUrl ?? null,
+      pricingMode: "fixed",
+      pricePerAdult: null,
+      pricePerChild: null,
+      fixedPrice: booking.grandTotal || null,
+      inclusions: source?.itinerary.inclusions ?? null,
+      exclusions: source?.itinerary.exclusions ?? null,
+      termsAndConditions: source?.itinerary.termsAndConditions ?? null,
+      validUntil: null,
+    },
+    days: days.map((day) => ({
+      id: day.id,
+      dayNumber: day.dayNumber,
+      title: day.title,
+      description: day.description,
+      hotelName: day.hotelName,
+      hotelCity: day.hotelCity,
+      stayNote: day.stayNote,
+      breakfast: day.breakfast,
+      lunch: day.lunch,
+      dinner: day.dinner,
+    })),
+    images: images.map((image) => ({
+      id: image.id,
+      dayId: image.dayId,
+      url: image.url,
+      caption: image.caption,
+    })),
+  }
+
+  return {
+    booking,
+    data,
+    guest: {
+      name: customer?.name ?? null,
+      phone: customer?.phone ?? null,
+      arrival: booking.startDate,
+      departure: booking.endDate,
+      adults: booking.adults,
+      children: booking.children,
+      infants: booking.infants,
+    },
+    // Lead traveller first, then in the order they were added.
+    passengers: [...pax]
+      .sort((a, b) => b.isLead - a.isLead)
+      .map((person) => ({ name: person.name, age: person.age })),
+  }
 }

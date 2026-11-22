@@ -78,6 +78,14 @@ export const fetchItineraryDetail = defineAction({
   },
 })
 
+/** Starting values for the "Download PDF" dialog's guest box. */
+export const fetchPdfGuestDefaults = defineAction({
+  name: "fetchPdfGuestDefaults",
+  permission: "itinerary:view",
+  schema: z.object({ id: uuidSchema }),
+  handler: async ({ id }) => service.getPdfGuestDefaults(id),
+})
+
 export const createItinerary = defineAction({
   name: "createItinerary",
   permission: "itinerary:create",
