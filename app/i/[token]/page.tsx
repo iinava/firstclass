@@ -34,6 +34,7 @@ import {
   getUnavailableShareReason,
   recordItineraryView,
 } from "@/lib/services/itinerary.service"
+import { PdfDownloadButton } from "./_components/pdf-download-button"
 import { ShareUnavailable } from "./_components/share-unavailable"
 
 export const dynamic = "force-dynamic"
@@ -134,15 +135,15 @@ export default async function SharedItineraryPage({
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
           <FirstClassLogo className="h-9 w-auto sm:h-11" />
           <div className="flex items-center gap-2">
-            <a
+            <PdfDownloadButton
               href={pdfHref}
-              download
+              nights={nights}
               className="inline-flex h-9 items-center gap-2 rounded-full border border-[#1e2b5e]/20 px-3.5 text-sm font-medium text-[#1e2b5e] transition-colors hover:bg-[#1e2b5e]/5"
             >
               <DownloadIcon className="size-4" />
               <span className="hidden sm:inline">Download PDF</span>
               <span className="sm:hidden">PDF</span>
-            </a>
+            </PdfDownloadButton>
             {enquiry && (
               <a
                 href={enquiry}
@@ -238,14 +239,14 @@ export default async function SharedItineraryPage({
                   <MessageCircleIcon className="size-4" />I want this trip
                 </a>
               )}
-              <a
+              <PdfDownloadButton
                 href={pdfHref}
-                download
+                nights={nights}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#1e2b5e] px-5 text-sm font-medium text-white transition-opacity hover:opacity-90"
               >
                 <DownloadIcon className="size-4" />
                 Download itinerary (PDF)
-              </a>
+              </PdfDownloadButton>
               <a
                 href={`tel:${COMPANY.phoneHref}`}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-black/10 px-5 text-sm font-medium transition-colors hover:bg-black/[0.03]"
@@ -465,14 +466,14 @@ export default async function SharedItineraryPage({
                 Talk to us on WhatsApp
               </a>
             )}
-            <a
+            <PdfDownloadButton
               href={pdfHref}
-              download
+              nights={nights}
               className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-sm font-medium text-[#1e2b5e] hover:opacity-90"
             >
               <DownloadIcon className="size-4" />
               Download PDF
-            </a>
+            </PdfDownloadButton>
           </div>
         </div>
         <footer className="border-t border-white/10">

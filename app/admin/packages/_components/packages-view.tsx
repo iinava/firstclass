@@ -52,6 +52,7 @@ import {
   fetchItineraries,
   updateItineraryStatus,
 } from "../actions"
+import { PdfDownloadDialog } from "../[id]/_components/pdf-download-dialog"
 import { ItineraryFormDialog } from "./itinerary-form-dialog"
 
 const PAGE_SIZE = 25
@@ -102,6 +103,7 @@ export function PackagesView() {
   const [formOpen, setFormOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<ItineraryListRow | null>(null)
   const [deleting, setDeleting] = React.useState<ItineraryListRow | null>(null)
+  const [pdfFor, setPdfFor] = React.useState<ItineraryListRow | null>(null)
 
   const statusMutation = useActionMutation({
     action: updateItineraryStatus,
@@ -259,9 +261,7 @@ export function PackagesView() {
                 <ExternalLinkIcon className="size-4" />
                 Preview shared page
               </DropdownMenuItem>
-              <DropdownMenuItem
-                render={<a href={`/admin/packages/${row.id}/pdf/download`} download />}
-              >
+              <DropdownMenuItem onClick={() => setPdfFor(row)}>
                 <DownloadIcon className="size-4" />
                 Download PDF
               </DropdownMenuItem>
@@ -393,6 +393,15 @@ export function PackagesView() {
         }}
         itinerary={editing}
       />
+
+      {pdfFor && (
+        <PdfDownloadDialog
+          open
+          onOpenChange={(open) => !open && setPdfFor(null)}
+          itineraryId={pdfFor.id}
+          nights={pdfFor.durationNights}
+        />
+      )}
 
       <ConfirmDialog
         open={Boolean(deleting)}
