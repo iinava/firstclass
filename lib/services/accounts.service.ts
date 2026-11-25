@@ -30,6 +30,7 @@ export interface ReceiptListRow {
   reference: string | null
   receivedAt: string
   isAdvance: boolean
+  notes: string | null
   voidedAt: Date | null
   bookingId: string
   bookingCode: string
@@ -70,6 +71,7 @@ export async function listReceipts(
       reference: receipts.reference,
       receivedAt: receipts.receivedAt,
       isAdvance: receipts.isAdvance,
+      notes: receipts.notes,
       voidedAt: receipts.voidedAt,
       bookingId: receipts.bookingId,
       bookingCode: bookings.code,
@@ -134,6 +136,54 @@ export async function createReceiptAtomic(
 
     const receipt = await createReceipt(values, tx)
     return { ok: true, receipt }
+  })
+}
+
+export type UpdateReceiptResult =
+  | { ok: true; receipt: typeof receipts.$inferSelect }
+  | { ok: false; reason: "not_found" | "voided" }
+  | { ok: false; reason: "over_balance"; balance: number }
+
+/**
+ * Corrects a live receipt under the same booking lock as createReceiptAtomic.
+ * The new amount may use up whatever is still due plus what this receipt
+ * already covers — its old amount is freed by the edit.
+ */
+export async function updateReceiptAtomic(
+  id: string,
+  values: Pick<
+    typeof receipts.$inferInsert,
+    "amount" | "mode" | "reference" | "receivedAt" | "isAdvance" | "notes"
+  >
+): Promise<UpdateReceiptResult> {
+  return txDb.transaction(async (tx) => {
+    const [current] = await tx.select().from(receipts).where(eq(receipts.id, id)).limit(1)
+    if (!current) return { ok: false, reason: "not_found" }
+    if (current.voidedAt) return { ok: false, reason: "voided" }
+
+    await tx
+      .select({ id: bookings.id })
+      .from(bookings)
+      .where(eq(bookings.id, current.bookingId))
+      .for("update")
+
+    // Re-read under the lock: a concurrent void could have landed in between.
+    const [locked] = await tx.select().from(receipts).where(eq(receipts.id, id)).limit(1)
+    if (!locked || locked.voidedAt) return { ok: false, reason: "voided" }
+
+    const ledger = await getBookingLedger(locked.bookingId, tx)
+    const available = ledger.balance + Number(locked.amount)
+    if (values.amount > available) {
+      return { ok: false, reason: "over_balance", balance: available }
+    }
+
+    const [row] = await tx
+      .update(receipts)
+      .set(values)
+      .where(and(eq(receipts.id, id), isNull(receipts.voidedAt)))
+      .returning()
+    if (!row) return { ok: false, reason: "voided" }
+    return { ok: true, receipt: row }
   })
 }
 

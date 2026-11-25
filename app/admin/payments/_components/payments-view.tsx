@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
-import { PhoneIcon, SearchIcon, XCircleIcon } from "lucide-react"
+import { PencilIcon, PhoneIcon, SearchIcon, XCircleIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   InputGroup,
@@ -35,6 +35,7 @@ import {
   voidReceipt,
   voidSupplierPayment,
 } from "@/app/admin/accounts-actions"
+import { ReceiptDialog } from "@/app/admin/trips/[id]/_components/receipt-dialog"
 
 const PAGE_SIZE = 25
 
@@ -103,6 +104,7 @@ export function PaymentsView() {
     })
 
   const [voiding, setVoiding] = React.useState<ReceiptListRow | null>(null)
+  const [editing, setEditing] = React.useState<ReceiptListRow | null>(null)
   const [voidingPayment, setVoidingPayment] =
     React.useState<SupplierPaymentListRow | null>(null)
 
@@ -195,19 +197,31 @@ export function PaymentsView() {
       {
         key: "actions",
         header: <span className="sr-only">Actions</span>,
-        className: "w-10",
+        className: "w-20",
         cell: (row) =>
           row.voidedAt ? (
             <span className="text-xs text-muted-foreground">Void</span>
           ) : (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Void receipt"
-              onClick={() => setVoiding(row)}
-            >
-              <XCircleIcon className="size-4" />
-            </Button>
+            <div className="flex justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Edit receipt"
+                title="Edit receipt"
+                onClick={() => setEditing(row)}
+              >
+                <PencilIcon className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Void receipt"
+                title="Void receipt"
+                onClick={() => setVoiding(row)}
+              >
+                <XCircleIcon className="size-4" />
+              </Button>
+            </div>
           ),
       },
     ],
@@ -523,6 +537,12 @@ export function PaymentsView() {
           }
         />
       </TabsContent>
+
+      <ReceiptDialog
+        open={Boolean(editing)}
+        onOpenChange={(open) => !open && setEditing(null)}
+        receipt={editing}
+      />
 
       <ConfirmDialog
         open={Boolean(voidingPayment)}

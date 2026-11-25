@@ -54,6 +54,7 @@ export const PERMISSIONS = [
 
   "payment:view",
   "payment:create",
+  "payment:update",
   "payment:void",
 
   "expense:view",
@@ -141,6 +142,7 @@ const ACCOUNTS: Permission[] = [
   "cost:update",
   "payment:view",
   "payment:create",
+  "payment:update",
   "payment:void",
   "expense:view",
   "expense:create",

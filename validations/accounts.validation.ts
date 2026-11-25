@@ -41,6 +41,14 @@ export const CreateReceiptSchema = z.object({
   notes: optionalText(500),
 })
 
+/**
+ * Correcting a receipt keeps its number and trip — only what was keyed in at
+ * the counter (amount, mode, date, reference, advance flag, notes) changes.
+ */
+export const UpdateReceiptSchema = CreateReceiptSchema.omit({ bookingId: true }).extend({
+  id: uuidSchema,
+})
+
 export const VoidReceiptSchema = z.object({
   id: uuidSchema,
   reason: requiredText("Reason", 300),
@@ -122,6 +130,7 @@ export const ReportParamsSchema = z.object({
 })
 
 export type CreateReceiptValues = z.input<typeof CreateReceiptSchema>
+export type UpdateReceiptValues = z.input<typeof UpdateReceiptSchema>
 export type ExpenseFormValues = z.input<typeof ExpenseFormSchema>
 export type SupplierPaymentValues = z.input<typeof CreateSupplierPaymentSchema>
 export type ExpenseListParams = z.output<typeof ExpenseListParamsSchema>

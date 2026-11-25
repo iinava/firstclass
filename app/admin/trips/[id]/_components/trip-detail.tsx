@@ -54,7 +54,9 @@ import {
 import type { TripCostRow } from "@/lib/services/booking.service"
 import type { BookingDay } from "@/db/schemas/booking.schema"
 import { removeAssignment, fetchAssignments } from "@/app/admin/fleet/actions"
-import { undoCostPayment } from "@/app/admin/accounts-actions"
+import { fetchReceipts, undoCostPayment, voidReceipt } from "@/app/admin/accounts-actions"
+import type { ReceiptListRow } from "@/lib/services/accounts.service"
+import { PAYMENT_MODE_LABELS } from "@/validations/accounts.validation"
 import {
   deleteBooking,
   deleteTripCost,
@@ -95,6 +97,16 @@ export function TripDetail({ tripId }: { tripId: string }) {
     queryFn: async () => unwrapAction(await fetchBookingLedger({ id: tripId })),
   })
 
+  const receiptParams = React.useMemo(
+    () => ({ bookingId: tripId, page: 1, pageSize: 100, sortDir: "desc" as const }),
+    [tripId]
+  )
+  const { data: receiptPage, isLoading: receiptsLoading } = useQuery({
+    queryKey: qk.accounts.receipts(receiptParams),
+    queryFn: async () => unwrapAction(await fetchReceipts(receiptParams)),
+  })
+  const receiptRows = receiptPage?.rows
+
   const { data: assignments } = useQuery({
     queryKey: qk.vehicles.availability({ bookingId: tripId }),
     queryFn: async () => unwrapAction(await fetchAssignments({ bookingId: tripId })),
@@ -116,6 +128,8 @@ export function TripDetail({ tripId }: { tripId: string }) {
   const [payingCost, setPayingCost] = React.useState<TripCostRow | null>(null)
   const [undoingCost, setUndoingCost] = React.useState<TripCostRow | null>(null)
   const [receiptOpen, setReceiptOpen] = React.useState(false)
+  const [editingReceipt, setEditingReceipt] = React.useState<ReceiptListRow | null>(null)
+  const [voidingReceipt, setVoidingReceipt] = React.useState<ReceiptListRow | null>(null)
   const [assignOpen, setAssignOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
   const [paxOpen, setPaxOpen] = React.useState(false)
@@ -147,6 +161,13 @@ export function TripDetail({ tripId }: { tripId: string }) {
     successMessage: "Payment undone",
     invalidate: [qk.bookings.all, qk.reports.all],
     onSuccess: () => setUndoingCost(null),
+  })
+
+  const voidReceiptMutation = useActionMutation({
+    action: voidReceipt,
+    successMessage: "Receipt voided",
+    invalidate: [qk.accounts.all, qk.bookings.all, qk.reports.all],
+    onSuccess: () => setVoidingReceipt(null),
   })
 
   const removeVehicle = useActionMutation({
@@ -286,6 +307,84 @@ export function TripDetail({ tripId }: { tripId: string }) {
             </Button>
           </div>
         ),
+      },
+    ],
+    []
+  )
+
+  const receiptColumns = React.useMemo<DataTableColumn<ReceiptListRow>[]>(
+    () => [
+      {
+        key: "number",
+        header: "Receipt",
+        cell: (row) => (
+          <div className="min-w-0">
+            <p
+              className={cn(
+                "truncate font-mono text-[15px] font-medium",
+                row.voidedAt && "line-through opacity-60"
+              )}
+            >
+              {row.number}
+            </p>
+            <p className="truncate text-[13px] text-muted-foreground">
+              {PAYMENT_MODE_LABELS[row.mode as never] ?? humanize(row.mode)}
+              {row.reference ? ` · ${row.reference}` : ""}
+            </p>
+          </div>
+        ),
+      },
+      {
+        key: "receivedAt",
+        header: "Date",
+        cell: (row) => (
+          <span className="whitespace-nowrap text-[15px] text-muted-foreground">
+            {formatDate(row.receivedAt)}
+          </span>
+        ),
+      },
+      {
+        key: "amount",
+        align: "right",
+        header: "Amount",
+        cell: (row) => (
+          <div className="tabular-nums">
+            <p className={cn("text-[15px]", row.voidedAt && "line-through opacity-60")}>
+              {formatMoneyShort(row.amount)}
+            </p>
+            {row.isAdvance && <p className="text-xs text-blue-500">Advance</p>}
+          </div>
+        ),
+      },
+      {
+        key: "actions",
+        header: <span className="sr-only">Actions</span>,
+        className: "w-20",
+        cell: (row) =>
+          row.voidedAt ? (
+            <span className="text-xs text-muted-foreground">Void</span>
+          ) : (
+            <div className="flex justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Edit payment"
+                title="Edit payment"
+                onClick={() => setEditingReceipt(row)}
+              >
+                <PencilIcon className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Void payment"
+                title="Void payment"
+                onClick={() => setVoidingReceipt(row)}
+              >
+                <XCircleIcon className="size-4" />
+              </Button>
+            </div>
+          ),
       },
     ],
     []
@@ -476,6 +575,9 @@ export function TripDetail({ tripId }: { tripId: string }) {
             <TabsTrigger value="costs">
               Costs{costs?.length ? ` (${costs.length})` : ""}
             </TabsTrigger>
+            <TabsTrigger value="payments">
+              Payments{receiptRows?.length ? ` (${receiptRows.length})` : ""}
+            </TabsTrigger>
             <TabsTrigger value="vehicles">
               Vehicles{assignments?.length ? ` (${assignments.length})` : ""}
             </TabsTrigger>
@@ -535,6 +637,18 @@ export function TripDetail({ tripId }: { tripId: string }) {
             skeletonRows={5}
             emptyTitle="No costs recorded"
             emptyDescription="Add hotels, transport and services so this trip's profit is real."
+          />
+        </TabsContent>
+
+        <TabsContent value="payments">
+          <DataTable
+            columns={receiptColumns}
+            rows={receiptRows}
+            getRowId={(row) => row.id}
+            isLoading={receiptsLoading}
+            skeletonRows={3}
+            emptyTitle="No payments received"
+            emptyDescription="Record the advance and later payments with the Record payment button."
           />
         </TabsContent>
 
@@ -781,6 +895,30 @@ export function TripDetail({ tripId }: { tripId: string }) {
         bookingId={tripId}
         balance={ledger?.balance ?? 0}
         isFirstPayment={(ledger?.received ?? 0) === 0}
+      />
+
+      <ReceiptDialog
+        open={Boolean(editingReceipt)}
+        onOpenChange={(open) => !open && setEditingReceipt(null)}
+        receipt={editingReceipt}
+        balance={ledger?.balance}
+      />
+
+      <ConfirmDialog
+        open={Boolean(voidingReceipt)}
+        onOpenChange={(open) => !open && setVoidingReceipt(null)}
+        title={`Void receipt ${voidingReceipt?.number}?`}
+        description="The receipt stays in the ledger marked void, and its amount comes back off what this trip has received. This cannot be undone."
+        confirmLabel="Void receipt"
+        variant="destructive"
+        isPending={voidReceiptMutation.isPending}
+        onConfirm={() =>
+          voidingReceipt &&
+          voidReceiptMutation.mutate({
+            id: voidingReceipt.id,
+            reason: "Voided from the trip payments list",
+          })
+        }
       />
 
       <SupplierPaymentDialog
