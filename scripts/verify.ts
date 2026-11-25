@@ -22,6 +22,7 @@ import * as customerSvc from "../lib/services/customer.service"
 import * as supplierSvc from "../lib/services/supplier.service"
 import * as vehicleSvc from "../lib/services/vehicle.service"
 import * as bookingSvc from "../lib/services/booking.service"
+import * as accountsSvc from "../lib/services/accounts.service"
 import { nextLeadCode, financialYear } from "../lib/codes"
 import { computeTotals, toPaise, formatMoney, marginPercent } from "../lib/money"
 import { hasPermission, canViewAll } from "../lib/rbac"
@@ -159,6 +160,76 @@ async function main() {
   )
   ok("profit = revenue - cost", ledger1.profit === 5460000 - 1920000)
   ok("balance equals full total before payment", ledger1.balance === 5460000)
+
+  console.log("\n— receipt edits —")
+  ok("accounts can edit payments", hasPermission("accounts", "payment:update"))
+  ok("sales cannot edit payments", !hasPermission("sales", "payment:update"))
+  const receiptBase = {
+    bookingId: booking.id,
+    customerId: a.customer.id,
+    mode: "upi" as const,
+    receivedAt: "2026-08-20",
+    receivedBy: null,
+  }
+  const adv = await accountsSvc.createReceiptAtomic(booking.id, 1000000, {
+    ...receiptBase,
+    number: "RC-RULE-0001",
+    amount: 1000000,
+    isAdvance: true,
+  })
+  const bal = await accountsSvc.createReceiptAtomic(booking.id, 2000000, {
+    ...receiptBase,
+    number: "RC-RULE-0002",
+    amount: 2000000,
+  })
+  ok("two receipts recorded", adv.ok && bal.ok)
+  if (adv.ok && bal.ok) {
+    // 54,600 total, 30,000 received → 24,600 due. The advance can grow to
+    // its own 10,000 plus the 24,600 due, and no further.
+    const tooBig = await accountsSvc.updateReceiptAtomic(adv.receipt.id, {
+      amount: 3460001,
+      mode: "upi",
+      receivedAt: "2026-08-20",
+      isAdvance: true,
+    })
+    ok(
+      "edit cannot push received past the trip value",
+      !tooBig.ok && tooBig.reason === "over_balance" && tooBig.balance === 3460000,
+      JSON.stringify(tooBig)
+    )
+
+    const raised = await accountsSvc.updateReceiptAtomic(adv.receipt.id, {
+      amount: 1500000,
+      mode: "cash",
+      reference: "CORRECTED",
+      receivedAt: "2026-08-21",
+      isAdvance: true,
+    })
+    ok("advance amount can be corrected", raised.ok && Number(raised.receipt.amount) === 1500000)
+    ok("receipt number is kept", raised.ok && raised.receipt.number === "RC-RULE-0001")
+    const ledger2 = await bookingSvc.getBookingLedger(booking.id)
+    ok("ledger reflects the edited advance", ledger2.advance === 1500000, `got ${ledger2.advance}`)
+    ok("ledger received is re-summed", ledger2.received === 3500000, `got ${ledger2.received}`)
+
+    const flipped = await accountsSvc.updateReceiptAtomic(bal.receipt.id, {
+      amount: 2000000,
+      mode: "upi",
+      receivedAt: "2026-08-20",
+      isAdvance: true,
+    })
+    const ledger3 = await bookingSvc.getBookingLedger(booking.id)
+    ok("advance flag can be toggled on", flipped.ok && ledger3.advance === 3500000)
+
+    await accountsSvc.voidReceipt(bal.receipt.id, "rule test")
+    const onVoid = await accountsSvc.updateReceiptAtomic(bal.receipt.id, {
+      amount: 100,
+      mode: "upi",
+      receivedAt: "2026-08-20",
+      isAdvance: false,
+    })
+    ok("void receipt cannot be edited", !onVoid.ok && onVoid.reason === "voided")
+  }
+  await db.delete(receipts).where(eq(receipts.bookingId, booking.id))
 
   console.log("\n— vehicle double-booking —")
   const [driver] = await db

@@ -23,6 +23,7 @@ import {
   ReceiptListParamsSchema,
   UndoCostPaymentSchema,
   UpdateExpenseSchema,
+  UpdateReceiptSchema,
   VoidReceiptSchema,
   VoidSupplierPaymentSchema,
 } from "@/validations/accounts.validation"
@@ -92,6 +93,62 @@ export const createReceipt = defineAction({
     revalidatePath("/admin/payments")
     revalidatePath(`/admin/trips/${input.bookingId}`)
     return receipt
+  },
+})
+
+/** Corrects a receipt keyed in wrong — amount, mode, date, advance flag. */
+export const updateReceipt = defineAction({
+  name: "updateReceipt",
+  permission: "payment:update",
+  schema: UpdateReceiptSchema,
+  handler: async ({ id, ...input }, { session }) => {
+    const before = await accounts.getReceipt(id)
+    if (!before) throw new ActionFailure("Receipt not found")
+    if (before.voidedAt) throw new ActionFailure("A void receipt cannot be edited")
+
+    const result = await accounts.updateReceiptAtomic(id, {
+      amount: input.amount,
+      mode: input.mode,
+      reference: input.reference,
+      receivedAt: input.receivedAt,
+      isAdvance: input.isAdvance,
+      notes: input.notes,
+    })
+    if (!result.ok) {
+      if (result.reason === "over_balance") {
+        throw new ActionFailure(
+          `This receipt can be at most ${formatMoney(result.balance)}`,
+          { amount: [`Cannot exceed ${formatMoney(result.balance)}`] }
+        )
+      }
+      throw new ActionFailure(
+        result.reason === "voided" ? "A void receipt cannot be edited" : "Receipt not found"
+      )
+    }
+
+    const changes: string[] = []
+    if (Number(before.amount) !== input.amount) {
+      changes.push(`amount ${formatMoney(Number(before.amount))} → ${formatMoney(input.amount)}`)
+    }
+    if (before.isAdvance !== input.isAdvance) {
+      changes.push(input.isAdvance ? "marked as advance" : "no longer the advance")
+    }
+    if (before.mode !== input.mode) changes.push(`mode ${before.mode} → ${input.mode}`)
+    if (before.receivedAt !== input.receivedAt) {
+      changes.push(`date ${before.receivedAt} → ${input.receivedAt}`)
+    }
+
+    await recordAudit({
+      entity: "receipts",
+      entityId: id,
+      action: "update",
+      summary: `Edited receipt ${before.number}${changes.length ? ` — ${changes.join(", ")}` : ""}`,
+      session,
+    })
+
+    revalidatePath("/admin/payments")
+    revalidatePath(`/admin/trips/${before.bookingId}`)
+    return result.receipt
   },
 })
 
